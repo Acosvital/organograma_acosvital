@@ -264,7 +264,10 @@ export default function OrgChart({
     let hubManagerId: string | undefined;
     let subSectorRing: number | undefined;
 
-    if (topManager && directSubSectors.length > 0) {
+    const activeSectorNome = mergedNodes.find((n) => n.id === activeSectorId)?.name ?? '';
+    const isFabricas = activeSectorNome.toLowerCase().includes('fábrica');
+
+    if (isFabricas && topManager && directSubSectors.length > 0) {
       hubManagerId = topManager.id;
       subSectorRing = 2;
       // Re-parent sub-sectors to the manager so calculateConnections draws

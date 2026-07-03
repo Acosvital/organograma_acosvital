@@ -14,14 +14,6 @@ interface Props {
 
 const HIDDEN_PATHS = ['/login'];
 
-function IconExitFs() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
-      <path d="M5 1H2v3M10 1h3v3M13 10v3h-3M5 14H2v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-
 export default function SidebarShell({ isAdmin, userEmail, children }: Props) {
   const pathname = usePathname();
 
@@ -69,18 +61,11 @@ export default function SidebarShell({ isAdmin, userEmail, children }: Props) {
     } catch {}
   }, [fsMode]);
 
-  const exitFs = useCallback(async () => {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-    } catch {}
-  }, []);
-
   const showSidebar = !HIDDEN_PATHS.some(p => pathname.startsWith(p));
 
   if (!showSidebar) return <FsContext.Provider value={fsMode}>{children}</FsContext.Provider>;
 
-  // Modo TV ou modo limpo: sidebar flutuante visível sobre o conteúdo (apenas
-  // o destaque do botão "Modo TV" e o que o OrgChart exibe mudam entre eles)
+  // Modo TV ou modo limpo: sidebar flutuante (position: fixed) sobre o conteúdo.
   if (fsMode === 'tv' || fsMode === 'clean') {
     return (
       <FsContext.Provider value={fsMode}>

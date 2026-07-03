@@ -28,6 +28,10 @@
   user-select: none;
 }
 
+.titleOverlayShifted {
+  left: 108px;
+}
+
 .titleTag {
   display: inline-flex;
   align-items: center;

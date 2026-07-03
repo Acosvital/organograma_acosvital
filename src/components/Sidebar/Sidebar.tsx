@@ -90,6 +90,7 @@ function IconChevron({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+
 // ── Rotas ────────────────────────────────────────────────────────────────
 const NAV = [
   { href: '/',         label: 'Organograma', Icon: IconOrg      },
@@ -177,6 +178,7 @@ export default function Sidebar({
             <IconChevron collapsed={collapsed} />
           </button>
         )}
+
       </div>
 
       {/* ── Navegação ─────────────────────────────────────────────────── */}
@@ -246,8 +248,9 @@ export default function Sidebar({
           {/* Tela cheia limpa — sem sidebar */}
           <button
             onClick={onCleanFs}
+            disabled={isTvFs}
             className={styles.footerBtn}
-            title={isAnyFs && !isTvFs ? 'Sair da tela cheia' : 'Tela cheia'}
+            title={isTvFs ? 'Desative o Modo TV primeiro' : isAnyFs && !isTvFs ? 'Sair da tela cheia' : 'Tela cheia'}
           >
             <IconFullscreen exit={isAnyFs && !isTvFs} />
             <span>{isAnyFs && !isTvFs ? 'Sair da tela cheia' : 'Tela cheia'}</span>
@@ -257,8 +260,9 @@ export default function Sidebar({
         {/* Card Modo TV */}
         <button
           onClick={onTvFs}
-          className={`${styles.tvCard} ${isTvFs ? styles.tvCardActive : ''}`}
-          title={isTvFs ? 'Sair do Modo TV' : 'Modo TV — apresentação na televisão'}
+          disabled={isAnyFs && !isTvFs}
+          className={`${styles.tvCard} ${isTvFs ? styles.tvCardActive : ''} ${isAnyFs && !isTvFs ? styles.tvCardDisabled : ''}`}
+          title={isAnyFs && !isTvFs ? 'Desative a tela cheia primeiro' : isTvFs ? 'Sair do Modo TV' : 'Modo TV — apresentação na televisão'}
         >
           <span className={styles.tvCardIcon}>
             <IconTv />

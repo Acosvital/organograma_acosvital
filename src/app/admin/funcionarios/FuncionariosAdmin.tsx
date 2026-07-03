@@ -787,12 +787,16 @@ export default function FuncionariosAdmin() {
 
   function openEdit(f: Funcionario) {
     setEditing(f);
-    // Nome individual já está correto no banco — busca co-diretor pelo cargo e setor
+    // Nome individual já está correto no banco — busca co-diretor pelo cargo e setor.
+    // Co-diretor só existe para diretores (nvl_permissao === 0); GMs e demais não têm par.
     const mainNome = f.nome_completo;
-    const coRecord = funcionarios.find(
-      fn => fn.id_cargo === f.id_cargo && fn.id !== f.id
-        && (fn.id_setor === f.id_setor || !fn.id_setor)
-    );
+    const cargoNvl = cargos.find(c => c.id === f.id_cargo)?.nvl_permissao ?? 99;
+    const coRecord = cargoNvl === 0
+      ? funcionarios.find(
+          fn => fn.id_cargo === f.id_cargo && fn.id !== f.id
+            && (fn.id_setor === f.id_setor || !fn.id_setor)
+        )
+      : undefined;
     const coNome   = coRecord?.nome_completo ?? '';
 
     setForm({
@@ -887,7 +891,10 @@ export default function FuncionariosAdmin() {
         const coBody = {
           nome_completo: form.co_diretor_nome.trim(),
           id_cargo: form.id_cargo, id_setor: form.id_setor, id_unidade: form.id_unidade,
-          photo_url: form.photo_url, cpf: form.co_cpf || null, rg: form.co_rg || null,
+          // photo_url só é enviado ao CRIAR o co-diretor; em edições (PUT) é omitido
+          // para não sobrescrever a foto própria do co-diretor com a do diretor principal.
+          ...(form.co_id ? {} : { photo_url: form.photo_url }),
+          cpf: form.co_cpf || null, rg: form.co_rg || null,
           cnpj: form.co_cnpj || null, contrato_tipo: form.co_contrato_tipo || null,
           jornada_trabalho: form.co_jornada_trabalho || null,
           data_nascimento: form.co_data_nascimento || null, data_admissao: form.co_data_admissao || null,

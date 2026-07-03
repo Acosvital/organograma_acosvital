@@ -10,6 +10,7 @@ import type { GeoProjection, GeoPath, GeoPermissibleObjects } from 'd3-geo';
 import type { GlobePoint, Star } from '@/types/globe';
 import { COUNTRY_LABELS } from '@/data/countryNames';
 import styles from './GlobeCanvas.module.css';
+import { useFsMode } from '@/lib/fsContext';
 
 const SPHERE = { type: 'Sphere' } as unknown as GeoPermissibleObjects;
 
@@ -116,6 +117,7 @@ const RESET_LON = 50;
 const RESET_LAT = 18;
 
 export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focusTarget, focusedId, hideInfoOverlays, hideControls, xShift = 0 }: Props) {
+  const fsMode          = useFsMode();
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const rotLonRef       = useRef(RESET_LON);
   const rotLatRef       = useRef(RESET_LAT);
@@ -1307,7 +1309,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         <>
           {/* Title overlay */}
           {!hideControls && (
-            <div className={styles.titleOverlay}>
+            <div className={`${styles.titleOverlay} ${fsMode !== 'none' ? styles.titleOverlayShifted : ''}`}>
               <div className={styles.titleTag}>
                 {theme === 'vital' ? 'Aços Vital · Clientes' : 'Aços Hub · Visualização'}
               </div>
