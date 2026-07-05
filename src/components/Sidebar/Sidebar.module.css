@@ -460,6 +460,14 @@
   background: rgba(59, 130, 246, 0.18) !important;
   border-color: rgba(59, 130, 246, 0.6) !important;
 }
+.tvCardDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.tvCardDisabled:hover {
+  background: transparent;
+  border-color: var(--border-subtle);
+}
 
 .tvCardIcon {
   width: 36px;

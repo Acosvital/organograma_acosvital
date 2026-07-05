@@ -90,7 +90,7 @@
   align-items: flex-start;
   justify-content: center;
   gap: 32px;
-  padding-left: 80px;
+  padding-left: 108px;
   pointer-events: none;
   animation: fadeInUp 0.5s var(--ease-in-out) both;
 }

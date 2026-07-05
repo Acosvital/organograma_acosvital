@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { GlobePoint } from '@/types/globe';
 import { GlobeScene, type DotGroup, type GlobeTheme } from './three/GlobeScene';
 import styles from './GlobeCanvas.module.css';
+import { useFsMode } from '@/lib/fsContext';
 
 export type { DotGroup, GlobeTheme };
 
@@ -27,6 +28,7 @@ export default function GlobeCanvasThree({
   focusedId,
   hideInfoOverlays,
 }: Props) {
+  const fsMode  = useFsMode();
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<GlobeScene | null>(null);
   const onPointClickRef = useRef(onPointClick);
@@ -120,7 +122,7 @@ export default function GlobeCanvasThree({
 
       {mounted && (
         <>
-          <div className={styles.titleOverlay}>
+          <div className={`${styles.titleOverlay} ${fsMode !== 'none' ? styles.titleOverlayShifted : ''}`}>
             <div className={styles.titleTag}>
               {theme === 'vital' ? 'Aços Vital · Clientes' : 'Aços Hub · Visualização'}
             </div>

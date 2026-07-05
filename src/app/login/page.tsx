@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useActionState } from 'react';
+import { Suspense, useActionState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { signIn } from './actions';
 import { LOGO_URL } from '@/lib/constants';
@@ -11,10 +11,46 @@ function LoginForm() {
   const next = searchParams.get('next') ?? '/admin';
 
   const [state, action, pending] = useActionState(signIn, null);
+  const formRef  = useRef<HTMLFormElement>(null);
+  const latRef   = useRef<HTMLInputElement>(null);
+  const lonRef   = useRef<HTMLInputElement>(null);
+  const geoReady = useRef(false);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (geoReady.current) {
+      geoReady.current = false;
+      return;
+    }
+
+    e.preventDefault();
+    const form = formRef.current;
+    if (!form) return;
+
+    const submit = () => {
+      geoReady.current = true;
+      form.requestSubmit();
+    };
+
+    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (latRef.current) latRef.current.value = String(pos.coords.latitude);
+          if (lonRef.current) lonRef.current.value = String(pos.coords.longitude);
+          submit();
+        },
+        () => submit(),
+        { timeout: 5000, maximumAge: 60_000 },
+      );
+    } else {
+      submit();
+    }
+  }
 
   return (
-    <form action={action} className={styles.form}>
+    <form ref={formRef} action={action} onSubmit={handleSubmit} className={styles.form}>
       <input type="hidden" name="next" value={next} />
+      <input type="hidden" name="lat" ref={latRef} />
+      <input type="hidden" name="lon"  ref={lonRef} />
 
       <label className={styles.label}>
         E-mail
