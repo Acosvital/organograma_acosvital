@@ -89,6 +89,16 @@ function IconChevron({ collapsed }: { collapsed: boolean }) {
     </svg>
   );
 }
+function IconEyeOff() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+      <path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+      <line x1="2" y1="2" x2="22" y2="22"/>
+    </svg>
+  );
+}
 
 
 // ── Rotas ────────────────────────────────────────────────────────────────
@@ -136,10 +146,16 @@ export default function Sidebar({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [pending, setPending]     = useState(false);
+  const [hidden, setHidden]       = useState(false);
 
   // Ao entrar em modo TV: colapsa automaticamente para ocupar menos espaço
   useEffect(() => {
     if (floating) setCollapsed(true);
+  }, [floating]);
+
+  // Ao sair do modo flutuante, garante que a sidebar volte visível da próxima vez
+  useEffect(() => {
+    if (!floating) setHidden(false);
   }, [floating]);
 
   async function handleSignOut() {
@@ -152,12 +168,14 @@ export default function Sidebar({
 
   const cls = [
     styles.sidebar,
-    collapsed   ? styles.collapsed   : '',
-    floating    ? styles.floating    : '',
-    mobileOpen  ? styles.mobileOpen  : '',
+    collapsed          ? styles.collapsed   : '',
+    floating           ? styles.floating    : '',
+    floating && hidden ? styles.sidebarHidden : '',
+    mobileOpen         ? styles.mobileOpen  : '',
   ].filter(Boolean).join(' ');
 
   return (
+    <>
     <aside className={cls}>
 
       {/* ── Brand ──────────────────────────────────────────────────────── */}
@@ -168,17 +186,14 @@ export default function Sidebar({
         {/* Logo ícone — visível quando colapsado ou flutuante */}
         <img src={ICON_LOGO_URL} alt="Açosvital" className={styles.logoIcon} />
 
-        {/* Botão de colapso — oculto em modo flutuante */}
-        {!floating && (
-          <button
-            className={styles.collapseBtn}
-            onClick={() => setCollapsed(c => !c)}
-            title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          >
-            <IconChevron collapsed={collapsed} />
-          </button>
-        )}
-
+        {/* Botão de colapso (normal) ou de ocultar totalmente (modo flutuante) */}
+        <button
+          className={styles.collapseBtn}
+          onClick={() => (floating ? setHidden(true) : setCollapsed(c => !c))}
+          title={floating ? 'Ocultar sidebar' : (collapsed ? 'Expandir menu' : 'Recolher menu')}
+        >
+          {floating ? <IconEyeOff /> : <IconChevron collapsed={collapsed} />}
+        </button>
       </div>
 
       {/* ── Navegação ─────────────────────────────────────────────────── */}
@@ -294,5 +309,18 @@ export default function Sidebar({
         </div>
       </div>
     </aside>
+
+    {/* Aba para reabrir a sidebar quando ocultada em modo flutuante (TV) */}
+    {floating && hidden && (
+      <button
+        className={styles.reopenTab}
+        onClick={() => setHidden(false)}
+        title="Mostrar sidebar"
+        aria-label="Mostrar sidebar"
+      >
+        <IconChevron collapsed={true} />
+      </button>
+    )}
+    </>
   );
 }

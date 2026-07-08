@@ -66,68 +66,59 @@ export default function SidebarShell({ isAdmin, userEmail, children }: Props) {
   if (!showSidebar) return <FsContext.Provider value={fsMode}>{children}</FsContext.Provider>;
 
   // Modo TV ou modo limpo: sidebar flutuante (position: fixed) sobre o conteúdo.
-  if (fsMode === 'tv' || fsMode === 'clean') {
-    return (
-      <FsContext.Provider value={fsMode}>
-      <div className={styles.shell}>
-        <Sidebar
-          isAdmin={isAdmin}
-          userEmail={userEmail}
-          floating={true}
-          isTvFs={fsMode === 'tv'}
-          isAnyFs={true}
-          onTvFs={enterTvFs}
-          onCleanFs={enterCleanFs}
-          mobileOpen={false}
-          onMobileClose={closeMobile}
-        />
-        <div className={styles.content}>{children}</div>
-      </div>
-      </FsContext.Provider>
-    );
-  }
+  const isFloating = fsMode === 'tv' || fsMode === 'clean';
 
+  // Importante: manter uma única árvore JSX (com keys estáveis em Sidebar/conteúdo)
+  // em vez de dois `return`s com formatos diferentes — caso contrário o React
+  // remonta os filhos ao trocar de modo (por casarem por posição, não por tipo),
+  // o que reinicia o estado interno do globo (ex.: pausa de rotação) ao entrar
+  // em tela cheia.
   return (
     <FsContext.Provider value={fsMode}>
     <div className={styles.shell}>
       {/* Backdrop — cobre o conteúdo quando sidebar mobile está aberta */}
-      {mobileOpen && (
+      {!isFloating && mobileOpen && (
         <div
+          key="backdrop"
           className={styles.backdrop}
           onClick={closeMobile}
           aria-hidden="true"
         />
       )}
 
-      {/* Botão hamburguer — só visível em mobile */}
-      <button
-        className={`${styles.menuBtn} ${mobileOpen ? styles.menuBtnOpen : ''}`}
-        onClick={() => setMobileOpen(o => !o)}
-        aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'}
-      >
-        {mobileOpen ? (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
-          </svg>
-        )}
-      </button>
+      {/* Botão hamburguer — só visível em mobile, fora de tela cheia */}
+      {!isFloating && (
+        <button
+          key="menuBtn"
+          className={`${styles.menuBtn} ${mobileOpen ? styles.menuBtnOpen : ''}`}
+          onClick={() => setMobileOpen(o => !o)}
+          aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'}
+        >
+          {mobileOpen ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          )}
+        </button>
+      )}
 
       <Sidebar
+        key="sidebar"
         isAdmin={isAdmin}
         userEmail={userEmail}
-        floating={false}
-        isTvFs={false}
-        isAnyFs={false}
+        floating={isFloating}
+        isTvFs={fsMode === 'tv'}
+        isAnyFs={isFloating}
         onTvFs={enterTvFs}
         onCleanFs={enterCleanFs}
-        mobileOpen={mobileOpen}
+        mobileOpen={isFloating ? false : mobileOpen}
         onMobileClose={closeMobile}
       />
-      <div className={styles.content}>{children}</div>
+      <div key="content" className={styles.content}>{children}</div>
     </div>
     </FsContext.Provider>
   );
