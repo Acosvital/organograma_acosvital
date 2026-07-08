@@ -1498,7 +1498,7 @@ export default function OrgChart({
                         <span className={styles.resultSub}>
                           {n.isSector
                             ? n.role || "Setor"
-                            : (levelNames[n.level] ?? n.role)}
+                            : (n.role || levelNames[n.level])}
                         </span>
                       </span>
                     </button>

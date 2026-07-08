@@ -57,7 +57,7 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
     const isCollapsed = collapsed.has(node.id);
     const color = nodeColor(node, levelColors);
     const label = node.name?.trim() || node.role || '—';
-    const sub = node.isSector ? (node.role || 'Setor') : (levelNames[node.level] ?? node.role);
+    const sub = node.isSector ? (node.role || 'Setor') : (node.role || levelNames[node.level]);
 
     return (
       <div key={node.id}>
@@ -119,7 +119,7 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
                   <Avatar photoUrl={node.photoUrl ?? ''} name={label} size={28} color={color} />
                   <span className={styles.rowText}>
                     <span className={styles.rowName}>{label}</span>
-                    <span className={styles.rowSub}>{node.isSector ? (node.role || 'Setor') : (levelNames[node.level] ?? node.role)}</span>
+                    <span className={styles.rowSub}>{node.isSector ? (node.role || 'Setor') : (node.role || levelNames[node.level])}</span>
                   </span>
                 </button>
               );
