@@ -7,7 +7,7 @@ import type { Funcionario, Cargo, Setor, Unidade } from '@/types/adminCore';
 import { NVL_LABELS } from '@/types/adminCore';
 import { levelColors } from '@/data/orgData';
 import styles from '../crud.module.css';
-import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
+import { cachedFetch, invalidateCache, invalidateCachePrefix, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
 
 // ── Máscaras ──────────────────────────────────────────────────────────────────
 const maskCPF   = (v: string) => v.replace(/\D/g,'').slice(0,11).replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{2})$/,'$1-$2');
@@ -910,13 +910,13 @@ export default function FuncionariosAdmin() {
         if (!coRes.ok) {
           const coJson = await coRes.json();
           showToast(`Diretor salvo, mas erro no co-diretor: ${coJson.error ?? 'desconhecido'}`, true);
-          invalidateCache(CACHE_KEYS.ORG);
+          invalidateCachePrefix('org:');
           closeDrawer(); await loadFuncionarios(true); return;
         }
       }
 
       showToast(editing ? 'Funcionário atualizado.' : 'Funcionário cadastrado no organograma.');
-      invalidateCache(CACHE_KEYS.ORG);
+      invalidateCachePrefix('org:');
       closeDrawer();
       await loadFuncionarios(true);
     } finally {
@@ -930,7 +930,7 @@ export default function FuncionariosAdmin() {
     const json = await res.json();
     if (!res.ok) { showToast(json.error ?? 'Erro ao excluir.', true); return; }
     showToast('Funcionário removido do sistema e do organograma.');
-    invalidateCache(CACHE_KEYS.ORG);
+    invalidateCachePrefix('org:');
     closeDrawer();
     await loadFuncionarios(true);
   }

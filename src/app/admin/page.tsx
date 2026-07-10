@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { IcoUsers, IcoBriefcase, IcoLayers, IcoBuilding, IcoGlobe, IcoArrowRight } from './_icons';
+import { IcoUsers, IcoBriefcase, IcoLayers, IcoBuilding, IcoGlobe, IcoBook, IcoArrowRight } from './_icons';
 import styles from './hub.module.css';
 
 export const metadata: Metadata = {
@@ -42,6 +42,13 @@ const CARDS = [
     title:      'Clientes',
     desc:       'Visualizar e buscar clientes integrados via Omie',
     colorStyle: styles.cardRed,
+  },
+  {
+    href:       '/admin/historia',
+    icon:       <IcoBook size={24} />,
+    title:      'História da Empresa',
+    desc:       'Editar texto, imagens e vídeo da página institucional',
+    colorStyle: styles.cardPink,
   },
 ] as const;
 

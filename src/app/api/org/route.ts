@@ -28,6 +28,65 @@ function normalizeName(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 }
 
+// Setores importados via Supabase usam prefixo 'sec-'; a API externa usa o UUID
+// puro. Normaliza para comparar com os ids crus de /setores (mesmo padrão
+// defensivo usado em OrgChart.tsx/openSector).
+function canonId(id: string): string {
+  return id.startsWith('sec-') ? id.slice(4) : id;
+}
+
+interface FuncScope { id: string; id_setor: string; id_unidade: string }
+interface SetorScope { id: string; parent_id: string | null }
+interface UnitScope { funcUnitMap: Map<string, string>; visibleSectorIds: Set<string> }
+
+// O drill-down lazy (?parent_id=) dispara um hop por nó durante o BFS de
+// pré-carregamento — sem cache, cada hop refaria as duas buscas completas de
+// /funcionarios e /setores. TTL curto só para achatar rajadas do mesmo request.
+const scopeCache = new Map<string, { at: number; promise: Promise<UnitScope> }>();
+const SCOPE_TTL_MS = 15_000;
+
+/**
+ * Calcula, para uma unidade, quais setores devem ficar visíveis e a qual
+ * unidade cada funcionário pertence.
+ * Um setor é visível se tiver ≥1 funcionário da unidade diretamente nele, OU
+ * se algum de seus sub-setores for visível (propaga para cima na cadeia
+ * parent_id de /setores).
+ */
+function computeUnitScope(unidadeId: string): Promise<UnitScope> {
+  const cached = scopeCache.get(unidadeId);
+  if (cached && Date.now() - cached.at < SCOPE_TTL_MS) return cached.promise;
+
+  const promise = (async () => {
+    const [funcionarios, setores] = await Promise.all([
+      fetchAllPages<FuncScope>('/funcionarios', 'funcionarios'),
+      fetchAllPages<SetorScope>('/setores', 'setores'),
+    ]);
+
+    const funcUnitMap  = new Map(funcionarios.map((f) => [f.id, f.id_unidade]));
+    const setorParent  = new Map(setores.map((s) => [s.id, s.parent_id]));
+    const directMatch  = new Set(
+      funcionarios.filter((f) => f.id_unidade === unidadeId).map((f) => f.id_setor),
+    );
+
+    const visibleSectorIds = new Set<string>();
+    for (const sectorId of directMatch) {
+      let sid: string | null = sectorId;
+      const seen = new Set<string>();
+      while (sid && !seen.has(sid)) {
+        seen.add(sid);
+        visibleSectorIds.add(sid);
+        sid = setorParent.get(sid) ?? null;
+      }
+    }
+
+    return { funcUnitMap, visibleSectorIds };
+  })();
+
+  scopeCache.set(unidadeId, { at: Date.now(), promise });
+  promise.catch(() => scopeCache.delete(unidadeId)); // não guarda falha em cache
+  return promise;
+}
+
 function toOrgNode(n: VwNode): OrgNode {
   return {
     id:               n.id,
@@ -52,11 +111,17 @@ export async function GET(request: NextRequest) {
 
   try {
     // Suporte a ?parent_id=<uuid> para busca lazy dos filhos de um setor
-    const parentId = request.nextUrl.searchParams.get('parent_id');
+    const parentId  = request.nextUrl.searchParams.get('parent_id');
+    // Suporte a ?unidade_id=<uuid> para filtrar o organograma por unidade
+    const unidadeId = request.nextUrl.searchParams.get('unidade_id');
     const params: Record<string, string> = {};
     if (parentId) params.parent_id = parentId;
 
-    const nodes = (await fetchAllPages<VwNode>('/vw_organograma_nodes', 'nodes', params)).map(toOrgNode);
+    const [rawNodes, unitScope] = await Promise.all([
+      fetchAllPages<VwNode>('/vw_organograma_nodes', 'nodes', params),
+      unidadeId ? computeUnitScope(unidadeId) : Promise.resolve(null),
+    ]);
+    const nodes = rawNodes.map(toOrgNode);
 
     // Oculta setores que são apenas containers organizacionais (Diretoria, Gerência
     // Geral): seus filhos diretos "sobem" para o pai do setor oculto (cascateando
@@ -78,7 +143,24 @@ export async function GET(request: NextRequest) {
       .filter(n => !hiddenSectorIds.has(n.id))
       .map(n => ({ ...n, parentId: resolveParent(n.parentId) }));
 
-    return NextResponse.json(visible);
+    // Filtra por unidade. IMPORTANTE: pessoas nunca são removidas da resposta
+    // aqui — isso quebraria o BFS de carregamento lazy (fetchChildren só
+    // recursa nos nós que vierem na resposta; remover um gerente cortaria a
+    // descoberta de todos os subordinados dele, mesmo que sejam da unidade).
+    // Só ANOTAMOS a unidade de cada pessoa; quem decide o que exibir é o
+    // cliente, depois que a árvore inteira já foi descoberta.
+    // Setores são a exceção segura: `visibleSectorIds` vem de /funcionarios +
+    // /setores completos (não de BFS parcial), então ocultar um setor vazio
+    // nunca corta a descoberta de conteúdo real.
+    const finalNodes = !unitScope ? visible : visible
+      .filter((n) => !n.isSector || unitScope.visibleSectorIds.has(canonId(n.id)))
+      .map((n) => (
+        n.isSector || n.level <= 1
+          ? n
+          : { ...n, unidadeId: (n.funcionarioId != null ? unitScope.funcUnitMap.get(n.funcionarioId) : undefined) ?? null }
+      ));
+
+    return NextResponse.json(finalNodes);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao buscar dados do organograma.');
     return NextResponse.json({ error: msg }, { status });

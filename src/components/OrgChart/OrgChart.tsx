@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import CenterCard from "@/components/CenterCard/CenterCard";
 import NodeCard from "@/components/NodeCard/NodeCard";
 import SectorCard from "@/components/SectorCard/SectorCard";
@@ -25,6 +26,8 @@ interface Props {
   allNodes: OrgNode[];
   levelNames: Record<number, string>;
   levelColors: Record<number, string>;
+  /** Unidade sendo exibida — propagado nas buscas lazy de filhos (?parent_id=). */
+  unidadeId?: string;
 }
 
 interface ViewBox {
@@ -57,6 +60,7 @@ export default function OrgChart({
   allNodes,
   levelNames,
   levelColors,
+  unidadeId,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -158,12 +162,27 @@ export default function OrgChart({
   const loadedParentIds  = useRef(new Set<string>());
   const prefetchStarted  = useRef(false);
 
-  // Nós completos = prop allNodes + lazy-loaded extras (sem duplicatas)
+  // Ao trocar de unidade, descarta o BFS/cache lazy anterior (outra unidade
+  // tem outra árvore) — evita vazar nós de uma unidade para outra.
+  useEffect(() => {
+    setExtraNodes([]);
+    loadedParentIds.current.clear();
+    prefetchStarted.current = false;
+  }, [unidadeId]);
+
+  // Nós completos = prop allNodes + lazy-loaded extras (sem duplicatas).
+  // Filtra pessoas de outra unidade AQUI (depois que a árvore inteira já foi
+  // descoberta via BFS) — nunca no fetch, senão um gerente de outra unidade
+  // cortaria a descoberta dos subordinados dele que são desta unidade.
   const mergedNodes = useMemo(() => {
-    if (extraNodes.length === 0) return allNodes;
-    const seen = new Set(allNodes.map((n) => n.id));
-    return [...allNodes, ...extraNodes.filter((n) => !seen.has(n.id))];
-  }, [allNodes, extraNodes]);
+    let combined = allNodes;
+    if (extraNodes.length > 0) {
+      const seen = new Set(allNodes.map((n) => n.id));
+      combined = [...allNodes, ...extraNodes.filter((n) => !seen.has(n.id))];
+    }
+    if (!unidadeId) return combined;
+    return combined.filter((n) => n.isSector || n.level <= 1 || n.unidadeId === unidadeId);
+  }, [allNodes, extraNodes, unidadeId]);
 
   // BFS: busca todos os descendentes de um nó via /api/org?parent_id=
   // `inFlightParentIds` evita disparos duplicados simultâneos (BFS + efeito da
@@ -177,9 +196,9 @@ export default function OrgChart({
     if (loadedParentIds.current.has(parentId) || inFlightParentIds.current.has(parentId)) return;
     inFlightParentIds.current.add(parentId);
     try {
-      const res = await fetch(
-        `/api/org?parent_id=${encodeURIComponent(parentId)}`,
-      );
+      const qs = new URLSearchParams({ parent_id: parentId });
+      if (unidadeId) qs.set('unidade_id', unidadeId);
+      const res = await fetch(`/api/org?${qs.toString()}`);
       if (!res.ok) return;
       const nodes: OrgNode[] = await res.json();
       if (!Array.isArray(nodes) || nodes.length === 0) return;
@@ -196,7 +215,7 @@ export default function OrgChart({
     } finally {
       inFlightParentIds.current.delete(parentId);
     }
-  }, []);
+  }, [unidadeId]);
 
   /** Dispara BFS a partir de todos os nós conhecidos (não apenas setores).
    *  `fetchChildren` já deduplica via `loadedParentIds`, portanto chamar várias
@@ -1419,6 +1438,14 @@ export default function OrgChart({
     >
       {/* ── Barra: alternância de modo (Mapa/Lista) + busca ─────────── */}
       <div className={`${styles.toolbar} ${fsMode !== 'none' ? styles.shifted : ''}`}>
+        {unidadeId && (
+          <Link href="/" className={styles.unidadesBackLink} title="Voltar para seleção de unidades">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+            </svg>
+            Unidades
+          </Link>
+        )}
         <div className={styles.segmented}>
           <button
             type="button"

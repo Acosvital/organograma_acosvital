@@ -43,23 +43,30 @@ export async function requireAuth(minRole: Role = 'viewer'): Promise<Ok | Err> {
     return errResponse(503, 'Serviço temporariamente indisponível.');
   }
 
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) {
-    return errResponse(401, 'Não autenticado.');
-  }
+  // getUser()/rpc() falam com o Supabase pela rede — uma instabilidade transitória
+  // aqui não pode virar um crash não tratado (500 genérico do Next.js); vira uma
+  // resposta JSON limpa para o front-end mostrar um toast normal.
+  try {
+    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !user) {
+      return errResponse(401, 'Não autenticado.');
+    }
 
-  const { data: role, error: roleErr } = await supabase.rpc('get_my_role');
-  if (roleErr || !role) {
-    return errResponse(403, 'Acesso negado. Usuário sem permissão cadastrada.');
-  }
+    const { data: role, error: roleErr } = await supabase.rpc('get_my_role');
+    if (roleErr || !role) {
+      return errResponse(403, 'Acesso negado. Usuário sem permissão cadastrada.');
+    }
 
-  const ROLE_RANK: Record<Role, number> = { viewer: 1, editor: 2, admin: 3 };
-  const userRank = ROLE_RANK[role as Role] ?? 0;
-  if (userRank < ROLE_RANK[minRole]) {
-    return errResponse(403, 'Permissão insuficiente.');
-  }
+    const ROLE_RANK: Record<Role, number> = { viewer: 1, editor: 2, admin: 3 };
+    const userRank = ROLE_RANK[role as Role] ?? 0;
+    if (userRank < ROLE_RANK[minRole]) {
+      return errResponse(403, 'Permissão insuficiente.');
+    }
 
-  return { ctx: { userId: user.id, role: role as Role }, supabase, err: null };
+    return { ctx: { userId: user.id, role: role as Role }, supabase, err: null };
+  } catch {
+    return errResponse(503, 'Não foi possível verificar sua sessão. Tente novamente.');
+  }
 }
 
 function errResponse(status: number, message: string): Err {

@@ -10,6 +10,9 @@ export interface OrgNode {
   sectorColor?: string;
   funcionarioId?: string | null;
   sectorDirectorOf?: string | null;
+  /** Unidade do funcionário (só presente quando o organograma foi filtrado por
+   *  unidade). Diretoria/Gerência Geral não têm — são papéis globais. */
+  unidadeId?: string | null;
 }
 
 export interface PositionedNode extends OrgNode {

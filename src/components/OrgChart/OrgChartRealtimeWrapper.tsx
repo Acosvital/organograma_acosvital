@@ -7,7 +7,7 @@ import {
   OVERVIEW_RING_RADII, OVERVIEW_NODE_RADIUS,
 } from '@/utils/radialLayout';
 import type { OrgNode } from '@/types/orgChart';
-import { cachedFetch, isCacheHit, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
+import { cachedFetch, isCacheHit, orgCacheKey, CACHE_TTL } from '@/lib/dataCache';
 
 const syncDotStyle: React.CSSProperties = {
   position: 'absolute',
@@ -32,12 +32,16 @@ const syncDotStyle: React.CSSProperties = {
 };
 
 interface Props {
+  /** Unidade cujo organograma deve ser exibido — Diretoria/Gerência Geral
+   *  sempre aparecem (papéis globais); setores e demais pessoas são filtrados
+   *  por esta unidade. */
+  unidadeId: string;
   initialNodes?: OrgNode[];
   levelColors: Record<number, string>;
   levelNames: Record<number, string>;
 }
 
-export default function OrgChartRealtimeWrapper({ initialNodes = [], levelColors, levelNames }: Props) {
+export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], levelColors, levelNames }: Props) {
   const [nodes, setNodes]         = useState<OrgNode[]>(initialNodes);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -53,17 +57,19 @@ export default function OrgChartRealtimeWrapper({ initialNodes = [], levelColors
   );
   const connections = useMemo(() => calculateConnections(positions), [positions]);
 
-  // Busca dados frescos ao montar — usa cache se < 5 min (evita refetch em toda navegação)
+  // Busca dados frescos ao montar (ou trocar de unidade) — usa cache se < 5 min
+  // (evita refetch em toda navegação). Cache é isolado por unidade.
   useEffect(() => {
     let active = true;
-    const key = CACHE_KEYS.ORG;
+    const key = orgCacheKey(unidadeId);
     const ttl = CACHE_TTL.ORG;
 
+    setNodes([]);
     if (!isCacheHit(key, ttl)) setIsSyncing(true);
 
     cachedFetch<OrgNode[]>(
       key,
-      () => fetch('/api/org').then(r => r.json()),
+      () => fetch(`/api/org?unidade_id=${encodeURIComponent(unidadeId)}`).then(r => r.json()),
       ttl,
     )
       .then(data => { if (active && Array.isArray(data)) setNodes(data); })
@@ -71,8 +77,7 @@ export default function OrgChartRealtimeWrapper({ initialNodes = [], levelColors
       .finally(() => { if (active) setIsSyncing(false); });
 
     return () => { active = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [unidadeId]);
 
   return (
     <>
@@ -82,6 +87,7 @@ export default function OrgChartRealtimeWrapper({ initialNodes = [], levelColors
         allNodes={nodes}
         levelColors={levelColors}
         levelNames={levelNames}
+        unidadeId={unidadeId}
       />
       {isSyncing && (
         <div style={syncDotStyle}>
