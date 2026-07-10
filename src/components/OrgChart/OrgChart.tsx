@@ -194,37 +194,56 @@ export default function OrgChart({
     return combined.filter((n) => n.isSector || n.level <= 1 || n.unidadeId === unidadeId);
   }, [allNodes, extraNodes, unidadeId]);
 
-  // BFS: busca todos os descendentes de um nó via /api/org?parent_id=
-  // `inFlightParentIds` evita disparos duplicados simultâneos (BFS + efeito da
-  // Lista podem pedir o mesmo parentId ao mesmo tempo). `loadedParentIds` só é
-  // marcado em caso de SUCESSO com filhos encontrados — uma resposta vazia ou
-  // uma falha de rede não "envenenam" o cache, então um setor que estava vazio
-  // (sem filhos ainda) é corretamente re-tentado da próxima vez que for aberto,
-  // ao invés de ficar travado em "0 filhos" para sempre.
+  // BFS com throttle: max 5 requisições simultâneas para não sobrecarregar a rede
   const inFlightParentIds = useRef(new Set<string>());
+  const bfsQueue = useRef<Set<string>>(new Set());
+  const inFlightCount = useRef(0);
+  const MAX_CONCURRENT_BFS = 5;
+
   const fetchChildren = useCallback(async (parentId: string): Promise<void> => {
     if (loadedParentIds.current.has(parentId) || inFlightParentIds.current.has(parentId)) return;
-    inFlightParentIds.current.add(parentId);
-    try {
-      const qs = new URLSearchParams({ parent_id: parentId });
-      if (unidadeId) qs.set('unidade_id', unidadeId);
-      const res = await fetch(`/api/org?${qs.toString()}`);
-      if (!res.ok) return;
-      const nodes: OrgNode[] = await res.json();
-      if (!Array.isArray(nodes) || nodes.length === 0) return;
-      loadedParentIds.current.add(parentId);
-      setExtraNodes((prev) => {
-        const seen = new Set(prev.map((n) => n.id));
-        const fresh = nodes.filter((n) => !seen.has(n.id));
-        return fresh.length > 0 ? [...prev, ...fresh] : prev;
-      });
-      // Continua o BFS para todos os filhos encontrados
-      await Promise.all(nodes.map((n) => fetchChildren(n.id)));
-    } catch {
-      /* best-effort */
-    } finally {
-      inFlightParentIds.current.delete(parentId);
-    }
+
+    // Enqueue para throttling
+    bfsQueue.current.add(parentId);
+
+    // Process queue respeitando MAX_CONCURRENT_BFS
+    const processQueue = async () => {
+      while (bfsQueue.current.size > 0 && inFlightCount.current < MAX_CONCURRENT_BFS) {
+        const id = bfsQueue.current.values().next().value as string | undefined;
+        if (!id) break;
+        bfsQueue.current.delete(id);
+
+        if (loadedParentIds.current.has(id) || inFlightParentIds.current.has(id)) continue;
+        inFlightParentIds.current.add(id);
+        inFlightCount.current++;
+
+        try {
+          const qs = new URLSearchParams({ parent_id: id });
+          if (unidadeId) qs.set('unidade_id', unidadeId);
+          const res = await fetch(`/api/org?${qs.toString()}`);
+          if (!res.ok) return;
+          const nodes: OrgNode[] = await res.json();
+          if (!Array.isArray(nodes) || nodes.length === 0) return;
+          loadedParentIds.current.add(id);
+          setExtraNodes((prev) => {
+            const seen = new Set(prev.map((n) => n.id));
+            const fresh = nodes.filter((n) => !seen.has(n.id));
+            return fresh.length > 0 ? [...prev, ...fresh] : prev;
+          });
+          // Enqueue filhos para BFS
+          nodes.forEach((n) => bfsQueue.current.add(n.id));
+        } catch {
+          /* best-effort */
+        } finally {
+          inFlightParentIds.current.delete(id);
+          inFlightCount.current--;
+          // Continue processando fila
+          await processQueue();
+        }
+      }
+    };
+
+    await processQueue();
   }, [unidadeId]);
 
   /** Dispara BFS a partir de todos os nós conhecidos (não apenas setores).
@@ -856,11 +875,9 @@ export default function OrgChart({
   // viewBox gerenciado diretamente via DOM (não via React state) para máxima fluidez
 
   // ── Connection renderer ───────────────────────────────────────────────
-  function renderConnections(
-    conns: Connection[],
-    posMap?: Map<string, PositionedNode>,
-  ) {
-    return conns.map((c) => {
+  const renderConnections = useCallback(
+    (conns: Connection[], posMap?: Map<string, PositionedNode>) => {
+      return conns.map((c) => {
       const target = posMap?.get(c.toId);
       const color =
         target?.isSector && target.sectorColor
@@ -901,7 +918,9 @@ export default function OrgChart({
         </g>
       );
     });
-  }
+    },
+    [levelColors],
+  );
 
   // ── Orbital intro + permanent alive animation ─────────────────────────────
   // Path: 360° director → radial to GM ring → 360° GM ring (all GMs) → stem → 360° sector ring
