@@ -96,6 +96,8 @@ export default function OrgChart({
   const lastInteraction = useRef<number>(Date.now());
   const animFrameRef = useRef<number | null>(null);
   const pressedSectorIdRef = useRef<string | null>(null);
+  const pendingPointerMoveRef = useRef<number | null>(null);
+  const pendingPointerEventRef = useRef<React.PointerEvent<SVGSVGElement> | null>(null);
 
   // ── Busca, fly-to, highlight e modo de visualização ──────────────────────
   const [viewMode, setViewMode] = useState<"radial" | "tree">("radial");
@@ -154,6 +156,7 @@ export default function OrgChart({
     () => () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (inertiaFrame.current) cancelAnimationFrame(inertiaFrame.current);
+      if (pendingPointerMoveRef.current) cancelAnimationFrame(pendingPointerMoveRef.current);
     },
     [],
   );
@@ -676,9 +679,12 @@ export default function OrgChart({
     }
   };
 
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!activePointers.current.has(e.pointerId)) return;
-    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const processPointerMove = useCallback(() => {
+    const e = pendingPointerEventRef.current;
+    if (!e || !activePointers.current.has(e.pointerId)) {
+      pendingPointerMoveRef.current = null;
+      return;
+    }
 
     // Detecta se é arraste (> 8 px de movimento)
     if (!didDrag.current) {
@@ -738,6 +744,18 @@ export default function OrgChart({
       lastPanEvent.current = { x: e.clientX, y: e.clientY, t: now };
 
       setVb({ ...vbRef.current, x: po.vbX - dx, y: po.vbY - dy });
+    }
+
+    pendingPointerMoveRef.current = null;
+  }, [minW, maxW, setVb]);
+
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!activePointers.current.has(e.pointerId)) return;
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pendingPointerEventRef.current = e;
+
+    if (!pendingPointerMoveRef.current) {
+      pendingPointerMoveRef.current = requestAnimationFrame(processPointerMove);
     }
   };
 
