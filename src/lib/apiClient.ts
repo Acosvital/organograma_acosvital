@@ -15,6 +15,8 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${BASE}/${path.replace(/^\//, '')}`;
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const isGet = method === 'GET' || method === 'HEAD';
   const res = await fetch(url, {
     ...init,
     headers: {
@@ -23,7 +25,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
     },
-    cache: 'no-store',
+    cache: isGet ? 'default' : 'no-store',
   });
 
   if (!res.ok) {

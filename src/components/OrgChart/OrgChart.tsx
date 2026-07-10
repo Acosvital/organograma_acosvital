@@ -103,6 +103,7 @@ export default function OrgChart({
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [flyTarget, setFlyTarget] = useState<string | null>(null);
+  const [showOrbitalAnimation, setShowOrbitalAnimation] = useState(true);
 
   const minW = activeSectorId ? MIN_W_SC : MIN_W_OV;
   const maxW = activeSectorId ? MAX_W_SC : MAX_W_OV;
@@ -156,6 +157,12 @@ export default function OrgChart({
     },
     [],
   );
+
+  // Pausar animação orbital após 20s para economizar CPU/bateria
+  useEffect(() => {
+    const timer = setTimeout(() => setShowOrbitalAnimation(false), 20000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ── Lazy loading de filhos via ?parent_id= ────────────────────────────
   const [extraNodes, setExtraNodes] = useState<OrgNode[]>([]);
@@ -1724,7 +1731,7 @@ export default function OrgChart({
               {!activeSectorId && (
                 <g key="overview" className={styles.contentGroup}>
                   {/* Orbital intro + alive animation */}
-                  {renderOrbitalAnimation()}
+                  {showOrbitalAnimation && renderOrbitalAnimation()}
                   {/* Dir→GG connections (Bezier) — level < 2 only */}
                   {renderConnections(
                     connections.filter((c) => c.level < 2),

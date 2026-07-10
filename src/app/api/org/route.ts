@@ -41,9 +41,9 @@ interface UnitScope { funcUnitMap: Map<string, string>; visibleSectorIds: Set<st
 
 // O drill-down lazy (?parent_id=) dispara um hop por nó durante o BFS de
 // pré-carregamento — sem cache, cada hop refaria as duas buscas completas de
-// /funcionarios e /setores. TTL curto só para achatar rajadas do mesmo request.
+// /funcionarios e /setores. TTL 5 min aceita que estrutura organizacional muda poucas vezes/dia.
 const scopeCache = new Map<string, { at: number; promise: Promise<UnitScope> }>();
-const SCOPE_TTL_MS = 15_000;
+const SCOPE_TTL_MS = 5 * 60 * 1000; // 5 min (increased from 15s for faster navigation)
 
 /**
  * Calcula, para uma unidade, quais setores devem ficar visíveis e a qual
