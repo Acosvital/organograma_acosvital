@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchAllPages } from '@/lib/apiClient';
+import { requireAuth } from '@/lib/apiAuth';
+import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +28,13 @@ interface ApiUnidade {
   longitude_x:         number | null;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { err } = await requireAuth('viewer');
+  if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'read');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
+
   try {
     const all = await fetchAllPages<ApiUnidade>('/mapa_unidades', 'unidades', {}, 50);
     const withCoords = all.filter(

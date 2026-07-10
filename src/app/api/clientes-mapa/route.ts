@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiGet, extractArray } from '@/lib/apiClient';
+import { requireAuth } from '@/lib/apiAuth';
+import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +16,12 @@ interface ApiPage {
 const LIMIT = 100;
 
 export async function GET(request: NextRequest) {
+  const { err } = await requireAuth('viewer');
+  if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'read');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
+
   const { searchParams } = new URL(request.url);
 
   const filters: Record<string, string> = {};

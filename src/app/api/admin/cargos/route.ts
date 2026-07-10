@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/apiAuth';
 import { apiPost, handleApiError, fetchAllPages } from '@/lib/apiClient';
+import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
+import { verifySameOrigin, forbiddenOrigin } from '@/lib/validation';
 import type { Cargo } from '@/types/adminCore';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { err } = await requireAuth('editor');
   if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'read');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
 
   try {
     const cargos = await fetchAllPages<Cargo>('/cargos', 'cargos');
@@ -19,8 +24,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!verifySameOrigin(request)) return forbiddenOrigin();
+
   const { err } = await requireAuth('editor');
   if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'write');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
 
   let body: unknown;
   try { body = await request.json(); }

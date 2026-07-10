@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/apiAuth';
 import { ApiError, apiGet, apiPost, apiPut, apiDelete, handleApiError, fetchAllPages } from '@/lib/apiClient';
 import { recomputeSectorHierarchy } from '@/lib/sectorHierarchy';
+import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
+import { verifySameOrigin, forbiddenOrigin } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,9 +18,12 @@ interface CargoRaw  { id: string; nome: string; nvl_permissao: number; }
 interface SetorRaw  { id: string; nome: string; }
 interface UnidRaw   { id: string; nome_fantasia: string; }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { err } = await requireAuth('editor');
   if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'read');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
 
   try {
     const [funcionarios, cargos, setores, unidades] = await Promise.all([
@@ -48,8 +53,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!verifySameOrigin(request)) return forbiddenOrigin();
+
   const { err } = await requireAuth('editor');
   if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'write');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
 
   let body: unknown;
   try { body = await request.json(); }
@@ -112,7 +122,8 @@ export async function POST(request: NextRequest) {
     const inner = (postObj.funcionario as Record<string, unknown> | undefined) ?? postObj;
     funcData = inner as { id: string };
     if (!funcData.id || typeof funcData.id !== 'string') {
-      console.error('[api/admin/funcionarios POST] API não retornou id:', JSON.stringify(rawPost));
+      // Loga apenas as chaves recebidas, nunca os valores (evita gravar CPF/RG/telefone em texto claro nos logs).
+      console.error('[api/admin/funcionarios POST] API não retornou id. Chaves recebidas:', Object.keys(postObj));
       return NextResponse.json({ error: 'API não retornou ID do funcionário criado.' }, { status: 500 });
     }
   } catch (e) {

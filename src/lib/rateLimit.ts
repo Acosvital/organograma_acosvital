@@ -45,8 +45,16 @@ export function rateLimit(
   return { ok: true, retryAfterMs: 0 };
 }
 
+// Sem um proxy reverso confiável configurado na frente da app, nenhum header de IP é
+// 100% imune a forjamento pelo próprio cliente — isso é uma limitação de infraestrutura,
+// não só de código. `x-real-ip` é preferido por carregar um único valor (setado pelo
+// proxy mais próximo, ex. Vercel/nginx), mais difícil de manipular em cadeia do que
+// `x-forwarded-for`, que o cliente pode preencher com múltiplos valores falsos.
 export function getIp(request: Request): string {
-  const fwd = (request.headers as Headers).get('x-forwarded-for');
+  const headers = request.headers as Headers;
+  const real = headers.get('x-real-ip');
+  if (real) return real.trim();
+  const fwd = headers.get('x-forwarded-for');
   if (fwd) return fwd.split(',')[0].trim();
   return 'unknown';
 }

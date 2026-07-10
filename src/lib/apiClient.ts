@@ -34,6 +34,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       const j = await res.json() as Record<string, unknown>;
       msg = String(j.message ?? j.error ?? msg);
     } catch { /* usar statusText */ }
+
+    // Erros 5xx da API externa podem conter detalhes internos (schema, stack, etc.)
+    // — loga o detalhe real no servidor mas nunca repassa ao cliente. Erros 4xx são
+    // validações de negócio (ex. "CPF já cadastrado") que a UI depende para orientar o usuário.
+    if (res.status >= 500) {
+      console.error(`[apiClient] ${res.status} em ${path}:`, msg);
+      throw new ApiError(res.status, 'Erro no serviço externo. Tente novamente em instantes.');
+    }
+
     throw new ApiError(res.status, msg);
   }
 

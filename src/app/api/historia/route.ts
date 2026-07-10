@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/apiAuth';
 import { apiGet, apiPut, handleApiError } from '@/lib/apiClient';
 import { toVideoEmbedUrl } from '@/lib/videoEmbed';
+import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
+import { verifySameOrigin, forbiddenOrigin } from '@/lib/validation';
 import type { HistoriaContent, HistoriaImagem, HistoriaTimelineItem } from '@/types/historia';
 
 export const dynamic = 'force-dynamic';
@@ -44,9 +46,12 @@ function toHistoriaContent(raw: RawHistoria): HistoriaContent {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { err } = await requireAuth('viewer');
   if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'read');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
 
   try {
     const raw = await apiGet<unknown>('/historia');
@@ -58,8 +63,13 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!verifySameOrigin(request)) return forbiddenOrigin();
+
   const { err } = await requireAuth('editor');
   if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'write');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
 
   let body: Record<string, unknown>;
   try {

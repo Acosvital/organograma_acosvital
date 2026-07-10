@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/apiAuth';
 import { ApiError, apiGet, apiPost, apiPut, apiDelete, handleApiError } from '@/lib/apiClient';
 import { recomputeSectorHierarchy } from '@/lib/sectorHierarchy';
+import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
+import { isValidUUID, badRequest, verifySameOrigin, forbiddenOrigin } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,8 +12,14 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  if (!isValidUUID(id)) return badRequest('ID inválido.');
+  if (!verifySameOrigin(request)) return forbiddenOrigin();
+
   const { err } = await requireAuth('editor');
   if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'write');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
 
   let body: unknown;
   try { body = await request.json(); }
@@ -132,12 +140,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  if (!isValidUUID(id)) return badRequest('ID inválido.');
+  if (!verifySameOrigin(request)) return forbiddenOrigin();
+
   const { err } = await requireAuth('editor');
   if (err) return err;
+
+  const rl = rateLimit(getIp(request), 'write');
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
 
   // Obtém o setor antes de deletar para recomputar a hierarquia depois
   let sectorId: string | null = null;
