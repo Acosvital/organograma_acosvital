@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/apiAuth';
-import { fetchAllPages, handleApiError } from '@/lib/apiClient';
-import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
-import type { Unidade } from '@/types/adminCore';
+import { handleApiError } from '@/lib/apiClient';
+import { guard } from '@/lib/routeGuard';
+import { getUnidadesList } from '@/lib/data/unidades';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,14 +9,11 @@ export const dynamic = 'force-dynamic';
 // qualquer usuário logado (viewer), diferente de /api/admin/unidades-rh que
 // exige papel de editor.
 export async function GET(request: NextRequest) {
-  const { err } = await requireAuth('viewer');
-  if (err) return err;
-
-  const rl = rateLimit(getIp(request), 'read');
-  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
+  const { error } = await guard(request, { role: 'viewer' });
+  if (error) return error;
 
   try {
-    const unidades = await fetchAllPages<Unidade>('/unidades', 'unidades');
+    const unidades = await getUnidadesList();
     return NextResponse.json(unidades);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao buscar unidades.');

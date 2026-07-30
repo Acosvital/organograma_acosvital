@@ -8,6 +8,8 @@ const devOrigins = (process.env.DEV_ALLOWED_ORIGINS ?? '')
   .map((s) => s.trim())
   .filter(Boolean);
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -18,9 +20,12 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     // 'unsafe-inline' em script-src é necessário pelo script inline de tema em
     // src/app/layout.tsx (evita flash de tema incorreto antes da 1ª pintura).
+    // 'unsafe-eval' só em dev: o React/Turbopack usa eval() para reconstruir
+    // stack traces e o Fast Refresh do HMR — nunca roda em build de produção
+    // (ver aviso do próprio React), então liberar aqui não afeta o CSP real.
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { apiGet } from '@/lib/apiClient';
-import { requireAuth } from '@/lib/apiAuth';
-import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
+import { guard } from '@/lib/routeGuard';
 import { isValidUUID, badRequest } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
@@ -37,11 +36,8 @@ export async function GET(
   const { id } = await params;
   if (!isValidUUID(id)) return badRequest('ID inválido.');
 
-  const { err } = await requireAuth('viewer');
-  if (err) return err;
-
-  const rl = rateLimit(getIp(request), 'read');
-  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
+  const { error } = await guard(request, { role: 'viewer' });
+  if (error) return error;
 
   try {
     const data = await apiGet<ApiUnidadeDetail>(`/mapa_unidades/${id}`);

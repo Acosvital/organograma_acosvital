@@ -1,9 +1,5 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Unidade } from '@/types/adminCore';
-import { cachedFetch, isCacheHit, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
 import styles from './UnidadeSelectorView.module.css';
 
 function IcoBuilding() {
@@ -23,38 +19,21 @@ function IcoArrow() {
   );
 }
 
-export default function UnidadeSelectorView() {
-  const [unidades, setUnidades] = useState<Unidade[]>([]);
-  const [loading, setLoading]   = useState(() => !isCacheHit(CACHE_KEYS.UNIDADES_ORG, CACHE_TTL.LONG));
-  const [error,   setError]     = useState(false);
+interface Props {
+  unidades: Unidade[];
+  error?: boolean;
+}
 
-  useEffect(() => {
-    let cancelled = false;
-
-    cachedFetch<Unidade[]>(
-      CACHE_KEYS.UNIDADES_ORG,
-      () => fetch('/api/unidades').then(r => r.json()),
-      CACHE_TTL.LONG,
-    )
-      .then(data => { if (!cancelled && Array.isArray(data)) setUnidades(data); })
-      .catch(() => { if (!cancelled) setError(true); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-
-    return () => { cancelled = true; };
-  }, []);
-
+export default function UnidadeSelectorView({ unidades, error = false }: Props) {
   return (
     <div className={styles.page}>
       <div className={styles.contentWrap}>
         <p className={styles.prompt}>Organograma — selecione uma unidade</p>
 
-        {loading && unidades.length === 0 && (
-          <p className={styles.status}>Carregando unidades…</p>
-        )}
-        {!loading && error && unidades.length === 0 && (
+        {error && unidades.length === 0 && (
           <p className={styles.status}>Não foi possível carregar as unidades.</p>
         )}
-        {!loading && !error && unidades.length === 0 && (
+        {!error && unidades.length === 0 && (
           <p className={styles.status}>Nenhuma unidade cadastrada ainda.</p>
         )}
 

@@ -32,9 +32,9 @@ const syncDotStyle: React.CSSProperties = {
 };
 
 interface Props {
-  /** Unidade cujo organograma deve ser exibido — Diretoria/Gerência Geral
-   *  sempre aparecem (papéis globais); setores e demais pessoas são filtrados
-   *  por esta unidade. */
+  /** Unidade cujo organograma deve ser exibido — só a Diretoria (nível 0)
+   *  sempre aparece (papel global); Gerência Geral, setores e demais pessoas
+   *  são filtrados por esta unidade. */
   unidadeId: string;
   initialNodes?: OrgNode[];
   levelColors: Record<number, string>;
@@ -46,8 +46,10 @@ export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], 
   const [isSyncing, setIsSyncing] = useState(false);
 
   const overviewNodes = useMemo(
-    () => nodes.filter((n) => n.level <= 2),
-    [nodes],
+    () => nodes.filter((n) =>
+      n.level <= 2 && (n.isSector || n.level === 0 || n.unidadeId === unidadeId),
+    ),
+    [nodes, unidadeId],
   );
   const positions = useMemo(
     // Distribute each level evenly across the full 360°, independent of tree structure.

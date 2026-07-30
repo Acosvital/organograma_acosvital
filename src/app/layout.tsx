@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { createClient } from '@/lib/supabase/server';
+import { getMyRole } from '@/lib/apiAuth';
 import SidebarShell from '@/components/Sidebar/SidebarShell';
 import { LOGO_URL } from '@/lib/constants';
-import { DEV_AUTH_BYPASS } from '@/lib/devAuth';
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,19 +37,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let isAdmin = DEV_AUTH_BYPASS;
+  // Papel via helper único (item 9); e-mail é best-effort para o rodapé da sidebar.
+  const role = await getMyRole();
+  const isAdmin = role === 'admin' || role === 'editor';
   let userEmail: string | undefined;
-  if (!DEV_AUTH_BYPASS) {
-    try {
-      const supabase = await createClient();
-      const [{ data: roleData }, { data: { user } }] = await Promise.all([
-        supabase.rpc('get_my_role'),
-        supabase.auth.getUser(),
-      ]);
-      userEmail = user?.email;
-      isAdmin = roleData === 'admin' || roleData === 'editor';
-    } catch {}
-  }
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    userEmail = user?.email;
+  } catch {}
 
   return (
     <html

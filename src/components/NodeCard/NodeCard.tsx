@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { PositionedNode } from '@/types/orgChart';
+import { colorGradientId, radiusClipId } from '@/utils/svgDefs';
 import styles from './NodeCard.module.css';
 
 interface Props {
@@ -37,24 +38,11 @@ function NodeCardInner({ node, color, vbW, hideText = false }: Props) {
   const sr = screenR(r, vbW);
   const showImage = sr >= 9 && !!node.photoUrl;
   const showLabel = sr >= 13 && !hideText;
-  const clipId = `clip-${node.id}`;
   const fontSize = r <= 13 ? 8 : r <= 20 ? 9 : 10;
 
   return (
     <g transform={`translate(${node.x}, ${node.y})`} className={styles.group}>
       <title>{node.name} — {node.role}</title>
-
-      <defs>
-        <radialGradient id={`grad-${node.id}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor={color} stopOpacity={0.22} />
-          <stop offset="100%" stopColor="#142133" stopOpacity={1} />
-        </radialGradient>
-        {showImage && (
-          <clipPath id={clipId}>
-            <circle cx={0} cy={0} r={r - 1} />
-          </clipPath>
-        )}
-      </defs>
 
       <g className={styles.visual}>
         {/* Outer glow (neon em camadas) */}
@@ -64,8 +52,8 @@ function NodeCardInner({ node, color, vbW, hideText = false }: Props) {
         {/* Border */}
         <circle cx={0} cy={0} r={r + 2} fill="none" stroke={color} strokeWidth={2} strokeOpacity={0.75} className={styles.ring} />
 
-        {/* Background com gradiente da cor do nível */}
-        <circle cx={0} cy={0} r={r} fill={`url(#grad-${node.id})`} />
+        {/* Background com gradiente da cor do nível — compartilhado por cor (ver OrgChart <defs>) */}
+        <circle cx={0} cy={0} r={r} fill={`url(#${colorGradientId(color)})`} />
 
         {/* Initials fallback */}
         {!showImage && (
@@ -80,7 +68,7 @@ function NodeCardInner({ node, color, vbW, hideText = false }: Props) {
             href={node.photoUrl}
             x={-r} y={-r}
             width={r * 2} height={r * 2}
-            clipPath={`url(#${clipId})`}
+            clipPath={`url(#${radiusClipId(r)})`}
             preserveAspectRatio="xMidYMid slice"
           />
         )}

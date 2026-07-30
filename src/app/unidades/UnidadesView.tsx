@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import GlobeExplorer from '@/components/Globe/GlobeExplorer';
 import type { ClientPoint, ClientPointDetail } from '@/types/client';
-import { cachedFetch, isCacheHit, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
 
 interface ApiUnidade {
   id:            string;
@@ -49,27 +48,12 @@ function toPoint(u: ApiUnidade): ClientPoint {
   };
 }
 
-export default function UnidadesView() {
-  const [points,  setPoints]  = useState<ClientPoint[]>([]);
-  // Sem spinner se cache estiver quente
-  const [loading, setLoading] = useState(
-    () => !isCacheHit(CACHE_KEYS.UNIDADES, CACHE_TTL.LONG),
-  );
+interface Props {
+  initialUnidades: ApiUnidade[];
+}
 
-  useEffect(() => {
-    let cancelled = false;
-
-    cachedFetch<{ unidades: ApiUnidade[] }>(
-      CACHE_KEYS.UNIDADES,
-      () => fetch('/api/unidades-mapa').then(r => r.json()),
-      CACHE_TTL.LONG,
-    )
-      .then(json => { if (!cancelled) setPoints((json.unidades ?? []).map(toPoint)); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-
-    return () => { cancelled = true; };
-  }, []);
+export default function UnidadesView({ initialUnidades }: Props) {
+  const points = useMemo(() => initialUnidades.map(toPoint), [initialUnidades]);
 
   const loadDetail = useCallback(async (p: ClientPoint): Promise<ClientPoint> => {
     if (!p.codigo) return p;
@@ -103,7 +87,7 @@ export default function UnidadesView() {
     <GlobeExplorer
       points={points}
       theme="hub"
-      loading={loading}
+      loading={false}
       itemLabel={{ singular: 'unidade', plural: 'unidades' }}
       loadingText="Carregando unidades…"
       loadDetail={loadDetail}

@@ -1,34 +1,13 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { cachedFetch, isCacheHit, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
 import { toVideoEmbedUrl } from '@/lib/videoEmbed';
 import type { HistoriaContent } from '@/types/historia';
 import styles from './HistoriaView.module.css';
 
-export default function HistoriaView() {
-  const [historia, setHistoria] = useState<HistoriaContent | null>(null);
-  const [loading,  setLoading]  = useState(() => !isCacheHit(CACHE_KEYS.HISTORIA, CACHE_TTL.LONG));
-  const [error,    setError]    = useState(false);
+interface Props {
+  historia: HistoriaContent | null;
+  error?: boolean;
+}
 
-  useEffect(() => {
-    let cancelled = false;
-
-    cachedFetch<HistoriaContent>(
-      CACHE_KEYS.HISTORIA,
-      () => fetch('/api/historia').then(r => {
-        if (!r.ok) throw new Error('Falha ao carregar história.');
-        return r.json();
-      }),
-      CACHE_TTL.LONG,
-    )
-      .then(data => { if (!cancelled) setHistoria(data); })
-      .catch(() => { if (!cancelled) setError(true); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-
-    return () => { cancelled = true; };
-  }, []);
-
+export default function HistoriaView({ historia, error = false }: Props) {
   const embedUrl = historia?.videoUrl ? toVideoEmbedUrl(historia.videoUrl) : null;
   const paragraphs = historia?.texto.split(/\n\s*\n/).filter(p => p.trim()) ?? [];
   const timeline = historia?.timeline ?? [];
@@ -36,15 +15,11 @@ export default function HistoriaView() {
   return (
     <div className={styles.page}>
       <div className={styles.contentWrap}>
-        {loading && (
-          <p className={styles.status}>Carregando…</p>
-        )}
-
-        {!loading && error && (
+        {error && (
           <p className={styles.status}>Não foi possível carregar esta página.</p>
         )}
 
-        {!loading && !error && historia && (
+        {!error && historia && (
           <>
             <h1 className={styles.title}>{historia.titulo}</h1>
 

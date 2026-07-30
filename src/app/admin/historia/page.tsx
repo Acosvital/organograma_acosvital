@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getHistoriaContent } from '@/lib/data/historia';
 import HistoriaAdmin from './HistoriaAdmin';
 
 export const metadata: Metadata = {
@@ -7,6 +8,11 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default function AdminHistoriaPage() {
-  return <HistoriaAdmin />;
+export default async function AdminHistoriaPage() {
+  let historia: Awaited<ReturnType<typeof getHistoriaContent>> | null = null;
+  try {
+    historia = await getHistoriaContent();
+  } catch {}
+
+  return <HistoriaAdmin initialHistoria={historia} />;
 }

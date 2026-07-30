@@ -21,20 +21,15 @@ const inflight = new Map<string, Promise<unknown>>();
 
 export const CACHE_TTL = {
   ORG:   5  * 60 * 1000,  // 5 min — organograma (admin pode alterar)
-  LONG:  30 * 60 * 1000,  // 30 min — clientes, unidades (dataset grande, muda pouco)
   ADMIN:  3 * 60 * 1000,  // 3 min — listas do painel admin
 } as const;
 
 export const CACHE_KEYS = {
   ORG:           'org',
-  CLIENTES:      'clientes-mapa',
-  UNIDADES:      'unidades-mapa',
-  UNIDADES_ORG:  'unidades-organograma',
   ADMIN_CARGOS:  'admin-cargos',
   ADMIN_SETORES: 'admin-setores',
   ADMIN_UNITS:   'admin-unidades-rh',
   ADMIN_FUNCS:   'admin-funcionarios',
-  HISTORIA:      'historia-empresa',
 } as const;
 
 /** Chave de cache do organograma de uma unidade específica. */

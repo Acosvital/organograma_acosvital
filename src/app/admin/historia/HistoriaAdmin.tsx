@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { IcoPlus, IcoTrash } from '../_icons';
-import { invalidateCache, CACHE_KEYS } from '@/lib/dataCache';
 import { toVideoEmbedUrl } from '@/lib/videoEmbed';
 import type { HistoriaContent, HistoriaImagem, HistoriaTimelineItem } from '@/types/historia';
 import styles from '../crud.module.css';
@@ -16,32 +15,20 @@ function emptyTimelineItem(): HistoriaTimelineItem {
   return { id: `tl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ano: new Date().getFullYear(), titulo: '', descricao: '', imagemUrl: null };
 }
 
-export default function HistoriaAdmin() {
-  const [titulo,   setTitulo]   = useState('');
-  const [texto,    setTexto]    = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [imagens,  setImagens]  = useState<HistoriaImagem[]>([]);
-  const [timeline, setTimeline] = useState<HistoriaTimelineItem[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
-  const [toast,    setToast]    = useState<{ msg: string; err: boolean } | null>(null);
+interface Props {
+  initialHistoria: HistoriaContent | null;
+}
 
-  useEffect(() => {
-    fetch('/api/historia')
-      .then(r => {
-        if (!r.ok) throw new Error('Falha ao carregar história.');
-        return r.json();
-      })
-      .then((data: HistoriaContent) => {
-        setTitulo(data.titulo ?? '');
-        setTexto(data.texto ?? '');
-        setVideoUrl(data.videoUrl ?? '');
-        setImagens(data.imagens?.length ? data.imagens : []);
-        setTimeline(data.timeline?.length ? data.timeline : []);
-      })
-      .catch(() => setToast({ msg: 'Não foi possível carregar o conteúdo.', err: true }))
-      .finally(() => setLoading(false));
-  }, []);
+export default function HistoriaAdmin({ initialHistoria }: Props) {
+  const [titulo,   setTitulo]   = useState(initialHistoria?.titulo ?? '');
+  const [texto,    setTexto]    = useState(initialHistoria?.texto ?? '');
+  const [videoUrl, setVideoUrl] = useState(initialHistoria?.videoUrl ?? '');
+  const [imagens,  setImagens]  = useState<HistoriaImagem[]>(initialHistoria?.imagens ?? []);
+  const [timeline, setTimeline] = useState<HistoriaTimelineItem[]>(initialHistoria?.timeline ?? []);
+  const [saving,   setSaving]   = useState(false);
+  const [toast,    setToast]    = useState<{ msg: string; err: boolean } | null>(
+    initialHistoria ? null : { msg: 'Não foi possível carregar o conteúdo.', err: true },
+  );
 
   useEffect(() => {
     if (!toast) return;
@@ -100,7 +87,6 @@ export default function HistoriaAdmin() {
         setToast({ msg: json.error ?? 'Erro ao salvar.', err: true });
         return;
       }
-      invalidateCache(CACHE_KEYS.HISTORIA);
       setImagens(json.imagens ?? []);
       setTimeline(json.timeline ?? []);
       setToast({ msg: 'Conteúdo salvo com sucesso.', err: false });
@@ -126,10 +112,7 @@ export default function HistoriaAdmin() {
       </div>
 
       <div className={styles.formBody} style={{ maxWidth: 720, width: '100%', margin: '0 auto', overflowY: 'auto' }}>
-        {loading ? (
-          <p className={styles.fieldHint}>Carregando…</p>
-        ) : (
-          <>
+        <>
             <div className={styles.field}>
               <label className={styles.label}>Título<span className={styles.required}>*</span></label>
               <input
@@ -274,12 +257,11 @@ export default function HistoriaAdmin() {
                 </button>
               </div>
             </div>
-          </>
-        )}
+        </>
       </div>
 
       <div className={styles.formFoot} style={{ maxWidth: 720, width: '100%', margin: '0 auto' }}>
-        <button className={styles.btnPrimary} disabled={saving || loading} onClick={handleSave}>
+        <button className={styles.btnPrimary} disabled={saving} onClick={handleSave}>
           {saving ? 'Salvando…' : 'Salvar alterações'}
         </button>
       </div>

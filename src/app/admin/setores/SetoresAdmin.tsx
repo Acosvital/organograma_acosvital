@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import type { Setor } from '@/types/adminCore';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../_icons';
 import styles from '../crud.module.css';
-import { cachedFetch, invalidateCache, isCacheHit, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
+import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
 
 const PALETTE = [
   '#3b82f6','#8b5cf6','#ec4899','#ef4444','#f97316',
@@ -28,11 +28,13 @@ function buildTree(setores: Setor[], cmp: (a: Setor, b: Setor) => number): Setor
   return flatten(roots);
 }
 
-export default function SetoresAdmin() {
-  const [setores,  setSetores]  = useState<Setor[]>([]);
-  const [loading,  setLoading]  = useState(
-    () => !isCacheHit(CACHE_KEYS.ADMIN_SETORES, CACHE_TTL.ADMIN),
-  );
+interface Props {
+  initialSetores: Setor[];
+}
+
+export default function SetoresAdmin({ initialSetores }: Props) {
+  const [setores,  setSetores]  = useState<Setor[]>(initialSetores);
+  const [loading,  setLoading]  = useState(false);
   const [search,    setSearch]    = useState('');
   const [filter,    setFilter]    = useState<'todos' | 'ativos' | 'inativos'>('ativos');
   const [sortField, setSortField] = useState<'codigo' | 'nome'>('codigo');
@@ -61,8 +63,6 @@ export default function SetoresAdmin() {
     } catch {}
     setLoading(false);
   }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   const parentOptions = useMemo(
     () => setores.filter(s => !s.parent_id && s.ativo && (!editing || s.id !== editing.id)),

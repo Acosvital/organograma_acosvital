@@ -7,16 +7,25 @@ import SectorCard from "@/components/SectorCard/SectorCard";
 import { useFsMode } from "@/lib/fsContext";
 import { Connection, OrgNode, PositionedNode } from "@/types/orgChart";
 import {
+  OVERVIEW_NODE_RADIUS,
   SECTOR_NODE_RADIUS,
   SECTOR_RING_RADII,
   calculateConnections,
   calculateEvenSectorLayout,
   getSubtree,
 } from "@/utils/radialLayout";
+import { colorGradientId, radiusClipId } from "@/utils/svgDefs";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import styles from "./OrgChart.module.css";
 import OrgTreeView from "./OrgTreeView";
 import Starfield from "./Starfield";
+
+// Raios possíveis de node/sector cards (conjunto pequeno e fixo, por nível/BFS-depth)
+// — usado para gerar os <clipPath> compartilhados das fotos (ver <defs> do SVG).
+const ALL_NODE_RADII = [
+  ...Object.values(OVERVIEW_NODE_RADIUS),
+  ...Object.values(SECTOR_NODE_RADIUS),
+];
 
 interface Props {
   // Pre-computed overview (levels 0-2 only)
@@ -26,7 +35,7 @@ interface Props {
   allNodes: OrgNode[];
   levelNames: Record<number, string>;
   levelColors: Record<number, string>;
-  /** Unidade sendo exibida — propagado nas buscas lazy de filhos (?parent_id=). */
+  /** Unidade sendo exibida — usada para filtrar pessoas de outras unidades. */
   unidadeId?: string;
 }
 
@@ -167,127 +176,30 @@ export default function OrgChart({
     return () => clearTimeout(timer);
   }, []);
 
-  // ── Lazy loading de filhos via ?parent_id= ────────────────────────────
-  const [extraNodes, setExtraNodes] = useState<OrgNode[]>([]);
-  const loadedParentIds  = useRef(new Set<string>());
-  const prefetchStarted  = useRef(false);
-
-  // Ao trocar de unidade, descarta o BFS/cache lazy anterior (outra unidade
-  // tem outra árvore) — evita vazar nós de uma unidade para outra.
-  useEffect(() => {
-    setExtraNodes([]);
-    loadedParentIds.current.clear();
-    prefetchStarted.current = false;
-  }, [unidadeId]);
-
-  // Nós completos = prop allNodes + lazy-loaded extras (sem duplicatas).
-  // Filtra pessoas de outra unidade AQUI (depois que a árvore inteira já foi
-  // descoberta via BFS) — nunca no fetch, senão um gerente de outra unidade
-  // cortaria a descoberta dos subordinados dele que são desta unidade.
+  // Nós completos = allNodes (já vem com a árvore inteira desde o fetch inicial,
+  // via SSR ou pelo /api/org?unidade_id=). Filtra pessoas de outra unidade aqui.
+  // Só a Diretoria (nível 0) é papel global e sempre aparece — Gerência Geral
+  // (nível 1) e demais pessoas são filtradas pela unidade de cada uma.
   const mergedNodes = useMemo(() => {
-    let combined = allNodes;
-    if (extraNodes.length > 0) {
-      const seen = new Set(allNodes.map((n) => n.id));
-      combined = [...allNodes, ...extraNodes.filter((n) => !seen.has(n.id))];
-    }
-    if (!unidadeId) return combined;
-    return combined.filter((n) => n.isSector || n.level <= 1 || n.unidadeId === unidadeId);
-  }, [allNodes, extraNodes, unidadeId]);
+    if (!unidadeId) return allNodes;
+    return allNodes.filter((n) => n.isSector || n.level === 0 || n.unidadeId === unidadeId);
+  }, [allNodes, unidadeId]);
 
-  // BFS com throttle: max 5 requisições simultâneas para não sobrecarregar a rede
-  const inFlightParentIds = useRef(new Set<string>());
-  const bfsQueue = useRef<Set<string>>(new Set());
-  const inFlightCount = useRef(0);
-  const MAX_CONCURRENT_BFS = 5;
+  // Cores distintas em uso (níveis fixos + cor custom de cada setor) — usadas para
+  // gerar os <radialGradient> compartilhados no <defs> do SVG (ver renderização
+  // abaixo). Evita recriar um gradiente por nó (250+ pessoas → só ~1 por cor).
+  const usedColors = useMemo(() => {
+    const set = new Set<string>(Object.values(levelColors));
+    for (const n of allNodes) if (n.isSector && n.sectorColor) set.add(n.sectorColor);
+    return [...set];
+  }, [allNodes, levelColors]);
 
-  const fetchChildren = useCallback(async (parentId: string): Promise<void> => {
-    if (loadedParentIds.current.has(parentId) || inFlightParentIds.current.has(parentId)) return;
-
-    // Enqueue para throttling
-    bfsQueue.current.add(parentId);
-
-    // Process queue respeitando MAX_CONCURRENT_BFS
-    const processQueue = async () => {
-      while (bfsQueue.current.size > 0 && inFlightCount.current < MAX_CONCURRENT_BFS) {
-        const id = bfsQueue.current.values().next().value as string | undefined;
-        if (!id) break;
-        bfsQueue.current.delete(id);
-
-        if (loadedParentIds.current.has(id) || inFlightParentIds.current.has(id)) continue;
-        inFlightParentIds.current.add(id);
-        inFlightCount.current++;
-
-        try {
-          const qs = new URLSearchParams({ parent_id: id });
-          if (unidadeId) qs.set('unidade_id', unidadeId);
-          const res = await fetch(`/api/org?${qs.toString()}`);
-          if (!res.ok) return;
-          const nodes: OrgNode[] = await res.json();
-          if (!Array.isArray(nodes) || nodes.length === 0) return;
-          loadedParentIds.current.add(id);
-          setExtraNodes((prev) => {
-            const seen = new Set(prev.map((n) => n.id));
-            const fresh = nodes.filter((n) => !seen.has(n.id));
-            return fresh.length > 0 ? [...prev, ...fresh] : prev;
-          });
-          // Enqueue filhos para BFS
-          nodes.forEach((n) => bfsQueue.current.add(n.id));
-        } catch {
-          /* best-effort */
-        } finally {
-          inFlightParentIds.current.delete(id);
-          inFlightCount.current--;
-          // Continue processando fila
-          await processQueue();
-        }
-      }
-    };
-
-    await processQueue();
-  }, [unidadeId]);
-
-  /** Dispara BFS a partir de todos os nós conhecidos (não apenas setores).
-   *  `fetchChildren` já deduplica via `loadedParentIds`, portanto chamar várias
-   *  vezes é seguro — só faz a requisição da primeira vez. */
-  const eagerLoadAll = useCallback(() => {
-    allNodes.forEach((n) => {
-      const canonId = n.id.startsWith('sec-') ? n.id.slice(4) : n.id;
-      fetchChildren(canonId);
-    });
-  }, [allNodes, fetchChildren]);
-
-  // Prefetch silencioso: logo que os nós raiz chegam, carrega a árvore completa
-  // em background (1 s de atraso para não competir com a animação orbital).
-  // Faz com que Lista e Busca estejam prontos quando o usuário precisar.
-  useEffect(() => {
-    if (allNodes.length === 0 || prefetchStarted.current) return;
-    prefetchStarted.current = true;
-    const t = setTimeout(eagerLoadAll, 1000);
-    return () => clearTimeout(t);
-  }, [allNodes, eagerLoadAll]);
-
-  // Lista: garante carregamento completo imediato (caso o prefetch ainda não tenha terminado).
-  useEffect(() => {
-    if (viewMode !== 'tree') return;
-    eagerLoadAll();
-  }, [viewMode, eagerLoadAll]);
-
-  // Busca: inicia carregamento assim que o usuário começa a digitar.
-  useEffect(() => {
-    if (!query) return;
-    eagerLoadAll();
-  }, [query, eagerLoadAll]);
-
-  const openSector = useCallback(
-    (id: string) => {
-      // Supabase importa setores com prefixo 'sec-'; a API externa usa o UUID puro.
-      // Normaliza para o UUID canônico para que fetchChildren e getSubtree coincidam.
-      const canonId = id.startsWith("sec-") ? id.slice(4) : id;
-      setSectorStack((prev) => [...prev, canonId]);
-      fetchChildren(canonId);
-    },
-    [fetchChildren],
-  );
+  const openSector = useCallback((id: string) => {
+    // Supabase importa setores com prefixo 'sec-'; a API externa usa o UUID puro.
+    // Normaliza para o UUID canônico para que getSubtree encontre os filhos certos.
+    const canonId = id.startsWith("sec-") ? id.slice(4) : id;
+    setSectorStack((prev) => [...prev, canonId]);
+  }, []);
 
   const goBack = useCallback(() => {
     setSectorStack((prev) => prev.slice(0, -1));
@@ -1720,6 +1632,19 @@ export default function OrgChart({
                     <feMergeNode in="SourceGraphic" />
                   </feMerge>
                 </filter>
+
+                {/* ── Gradientes/clips compartilhados por NodeCard/SectorCard ── */}
+                {usedColors.map((c) => (
+                  <radialGradient key={c} id={colorGradientId(c)} cx="50%" cy="50%" r="50%">
+                    <stop offset="0%"   stopColor={c} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="#142133" stopOpacity={1} />
+                  </radialGradient>
+                ))}
+                {ALL_NODE_RADII.map((r) => (
+                  <clipPath key={r} id={radiusClipId(r)}>
+                    <circle cx={0} cy={0} r={r - 1} />
+                  </clipPath>
+                ))}
               </defs>
 
               {/* Background circle */}
@@ -1804,16 +1729,21 @@ export default function OrgChart({
                     <CenterCard node={overviewDirectors[0]} color={levelColors[0]} hideText={hideText} />
                   )}
                   {overviewDirectors.length > 1 && (() => {
+                    // Diretor principal (isPrimaryDirector) sempre primeiro: define a
+                    // ordem do nome ("Principal & Co-diretor") e a foto padrão do card.
+                    const sorted = [...overviewDirectors].sort(
+                      (a, b) => (b.isPrimaryDirector ? 1 : 0) - (a.isPrimaryDirector ? 1 : 0),
+                    );
                     // Achata nomes que já contenham " & " (dados legados) e remove duplicatas
                     const allNames = [...new Set(
-                      overviewDirectors.flatMap(d =>
+                      sorted.flatMap(d =>
                         d.name.split(/\s+&\s+/).map(n => n.trim()).filter(Boolean)
                       )
                     )];
                     const merged: typeof overviewDirectors[0] = {
-                      ...overviewDirectors[0],
+                      ...sorted[0],
                       name: allNames.join(' & '),
-                      photoUrl: overviewDirectors.find(d => d.photoUrl)?.photoUrl,
+                      photoUrl: sorted[0].photoUrl ?? sorted.find(d => d.photoUrl)?.photoUrl,
                     };
                     return <CenterCard node={merged} color={levelColors[0]} hideText={hideText} />;
                   })()}

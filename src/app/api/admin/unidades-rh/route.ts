@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/apiAuth';
-import { apiPost, handleApiError, fetchAllPages } from '@/lib/apiClient';
-import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
-import { verifySameOrigin, forbiddenOrigin } from '@/lib/validation';
-import type { Unidade } from '@/types/adminCore';
+import { apiPost, handleApiError } from '@/lib/apiClient';
+import { guard } from '@/lib/routeGuard';
+import { parseJsonBody } from '@/lib/validation';
+import { getUnidadesList } from '@/lib/data/unidades';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const { err } = await requireAuth('editor');
-  if (err) return err;
-
-  const rl = rateLimit(getIp(request), 'read');
-  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
+  const { error } = await guard(request, { role: 'editor' });
+  if (error) return error;
 
   try {
-    const unidades = await fetchAllPages<Unidade>('/unidades', 'unidades');
+    const unidades = await getUnidadesList();
     return NextResponse.json(unidades);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao buscar unidades.');
@@ -24,17 +20,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!verifySameOrigin(request)) return forbiddenOrigin();
+  const { error } = await guard(request, { role: 'editor', action: 'write', sameOrigin: true });
+  if (error) return error;
 
-  const { err } = await requireAuth('editor');
-  if (err) return err;
-
-  const rl = rateLimit(getIp(request), 'write');
-  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
-
-  let body: unknown;
-  try { body = await request.json(); }
-  catch { return NextResponse.json({ error: 'JSON inválido.' }, { status: 400 }); }
+  const { body, error: bodyErr } = await parseJsonBody(request);
+  if (bodyErr) return bodyErr;
 
   const b = body as Record<string, unknown>;
 

@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/apiAuth';
-import { apiPost, handleApiError, fetchAllPages } from '@/lib/apiClient';
-import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
-import { verifySameOrigin, forbiddenOrigin } from '@/lib/validation';
-import type { Cargo } from '@/types/adminCore';
+import { apiPost, handleApiError } from '@/lib/apiClient';
+import { guard } from '@/lib/routeGuard';
+import { validateNvlPermissao, parseJsonBody } from '@/lib/validation';
+import { getCargosList } from '@/lib/data/adminCargos';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const { err } = await requireAuth('editor');
-  if (err) return err;
-
-  const rl = rateLimit(getIp(request), 'read');
-  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
+  const { error } = await guard(request, { role: 'editor' });
+  if (error) return error;
 
   try {
-    const cargos = await fetchAllPages<Cargo>('/cargos', 'cargos');
+    const cargos = await getCargosList();
     return NextResponse.json(cargos);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao buscar cargos.');
@@ -24,17 +20,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!verifySameOrigin(request)) return forbiddenOrigin();
+  const { error } = await guard(request, { role: 'editor', action: 'write', sameOrigin: true });
+  if (error) return error;
 
-  const { err } = await requireAuth('editor');
-  if (err) return err;
-
-  const rl = rateLimit(getIp(request), 'write');
-  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
-
-  let body: unknown;
-  try { body = await request.json(); }
-  catch { return NextResponse.json({ error: 'JSON inválido.' }, { status: 400 }); }
+  const { body, error: bodyErr } = await parseJsonBody(request);
+  if (bodyErr) return bodyErr;
 
   const b = body as Record<string, unknown>;
   if (!b.nome || b.nvl_permissao === undefined || !b.descricao) {
@@ -45,18 +35,8 @@ export async function POST(request: NextRequest) {
   }
 
   const nvl = Number(b.nvl_permissao);
-  if (nvl === 2 || nvl === 3) {
-    return NextResponse.json(
-      { error: 'Níveis 2 e 3 são reservados para setores e sub-setores.' },
-      { status: 422 },
-    );
-  }
-  if (nvl > 12) {
-    return NextResponse.json(
-      { error: 'Nível hierárquico máximo permitido é 12.' },
-      { status: 422 },
-    );
-  }
+  const nvlErr = validateNvlPermissao(nvl);
+  if (nvlErr) return NextResponse.json({ error: nvlErr }, { status: 422 });
 
   try {
     const data = await apiPost('/cargos', {

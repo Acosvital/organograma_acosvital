@@ -1,50 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/apiAuth';
-import { ApiError, apiGet, apiPost, apiPut, apiDelete, handleApiError, fetchAllPages } from '@/lib/apiClient';
+import { ApiError, apiGet, apiPost, apiPut, apiDelete, handleApiError } from '@/lib/apiClient';
 import { recomputeSectorHierarchy } from '@/lib/sectorHierarchy';
-import { rateLimit, getIp, rateLimitResponse } from '@/lib/rateLimit';
-import { verifySameOrigin, forbiddenOrigin } from '@/lib/validation';
+import { guard } from '@/lib/routeGuard';
+import { parseJsonBody } from '@/lib/validation';
+import { getFuncionariosEnriched } from '@/lib/data/adminFuncionarios';
 
 export const dynamic = 'force-dynamic';
 
-interface FuncRaw {
-  id:         string;
-  id_cargo:   string;
-  id_setor:   string;
-  id_unidade: string;
-  [key: string]: unknown;
-}
-interface CargoRaw  { id: string; nome: string; nvl_permissao: number; }
-interface SetorRaw  { id: string; nome: string; }
-interface UnidRaw   { id: string; nome_fantasia: string; }
-
 export async function GET(request: NextRequest) {
-  const { err } = await requireAuth('editor');
-  if (err) return err;
-
-  const rl = rateLimit(getIp(request), 'read');
-  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
+  const { error } = await guard(request, { role: 'editor' });
+  if (error) return error;
 
   try {
-    const [funcionarios, cargos, setores, unidades] = await Promise.all([
-      fetchAllPages<FuncRaw>('/funcionarios', 'funcionarios'),
-      fetchAllPages<CargoRaw>('/cargos',       'cargos'),
-      fetchAllPages<SetorRaw>('/setores',      'setores'),
-      fetchAllPages<UnidRaw>('/unidades',      'unidades'),
-    ]);
-
-    const cargoMap   = new Map(cargos.map(c => [c.id, c]));
-    const setorMap   = new Map(setores.map(s => [s.id, s]));
-    const unidadeMap = new Map(unidades.map(u => [u.id, u]));
-
-    const enriched = funcionarios.map(f => ({
-      ...f,
-      cargo_nome:   cargoMap.get(f.id_cargo)?.nome              ?? null,
-      cargo_nvl:    cargoMap.get(f.id_cargo)?.nvl_permissao     ?? null,
-      setor_nome:   setorMap.get(f.id_setor)?.nome              ?? null,
-      unidade_nome: unidadeMap.get(f.id_unidade)?.nome_fantasia ?? null,
-    }));
-
+    const enriched = await getFuncionariosEnriched();
     return NextResponse.json(enriched);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao buscar funcionários.');
@@ -53,17 +21,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!verifySameOrigin(request)) return forbiddenOrigin();
+  const { error } = await guard(request, { role: 'editor', action: 'write', sameOrigin: true });
+  if (error) return error;
 
-  const { err } = await requireAuth('editor');
-  if (err) return err;
-
-  const rl = rateLimit(getIp(request), 'write');
-  if (!rl.ok) return rateLimitResponse(rl.retryAfterMs);
-
-  let body: unknown;
-  try { body = await request.json(); }
-  catch { return NextResponse.json({ error: 'JSON inválido.' }, { status: 400 }); }
+  const { body, error: bodyErr } = await parseJsonBody(request);
+  if (bodyErr) return bodyErr;
 
   const b = body as Record<string, unknown>;
   const required = ['nome_completo', 'id_cargo', 'id_setor', 'id_unidade'];

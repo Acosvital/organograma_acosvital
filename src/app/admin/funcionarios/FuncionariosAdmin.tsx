@@ -691,12 +691,19 @@ function FuncionarioDrawer({
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
-export default function FuncionariosAdmin() {
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [cargos,       setCargos]       = useState<Cargo[]>([]);
-  const [setores,      setSetores]      = useState<Setor[]>([]);
-  const [unidades,     setUnidades]     = useState<Unidade[]>([]);
-  const [loading,      setLoading]      = useState(true);
+interface Props {
+  initialFuncionarios: Funcionario[];
+  initialCargos:       Cargo[];
+  initialSetores:      Setor[];
+  initialUnidades:     Unidade[];
+}
+
+export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, initialSetores, initialUnidades }: Props) {
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>(initialFuncionarios);
+  const [cargos,       setCargos]       = useState<Cargo[]>(initialCargos);
+  const [setores,      setSetores]      = useState<Setor[]>(initialSetores);
+  const [unidades,     setUnidades]     = useState<Unidade[]>(initialUnidades);
+  const [loading,      setLoading]      = useState(false);
 
   const [search,    setSearch]    = useState('');
   const [fSetor,    setFSetor]    = useState('');
@@ -716,31 +723,20 @@ export default function FuncionariosAdmin() {
     setTimeout(() => setToast(null), 3500);
   }, []);
 
-  const loadDeps = useCallback(async () => {
-    const [rc, rs, ru] = await Promise.all([
-      cachedFetch<Cargo[]>(CACHE_KEYS.ADMIN_CARGOS,  () => fetch('/api/admin/cargos').then(r => r.json()),       CACHE_TTL.ADMIN),
-      cachedFetch<Setor[]>(CACHE_KEYS.ADMIN_SETORES, () => fetch('/api/admin/setores').then(r => r.json()),      CACHE_TTL.ADMIN),
-      cachedFetch<Unidade[]>(CACHE_KEYS.ADMIN_UNITS, () => fetch('/api/admin/unidades-rh').then(r => r.json()), CACHE_TTL.ADMIN),
-    ]);
-    setCargos(rc);
-    setSetores(rs);
-    setUnidades(ru);
-  }, []);
-
   const loadFuncionarios = useCallback(async (forceRefresh = false) => {
     if (forceRefresh) invalidateCache(CACHE_KEYS.ADMIN_FUNCS);
-    const data = await cachedFetch<Funcionario[]>(
-      CACHE_KEYS.ADMIN_FUNCS,
-      () => fetch('/api/admin/funcionarios').then(r => r.json()),
-      CACHE_TTL.ADMIN,
-    );
-    setFuncionarios(data);
-  }, []);
-
-  useEffect(() => {
     setLoading(true);
-    Promise.all([loadDeps(), loadFuncionarios()]).finally(() => setLoading(false));
-  }, [loadDeps, loadFuncionarios]);
+    try {
+      const data = await cachedFetch<Funcionario[]>(
+        CACHE_KEYS.ADMIN_FUNCS,
+        () => fetch('/api/admin/funcionarios').then(r => r.json()),
+        CACHE_TTL.ADMIN,
+      );
+      setFuncionarios(data);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const hasDeps = cargos.length > 0 && setores.length > 0 && unidades.length > 0;
 

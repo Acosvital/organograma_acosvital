@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import GlobeExplorer from '@/components/Globe/GlobeExplorer';
 import type { ApiCliente, ClientPoint } from '@/types/client';
 import { toClientPoint } from '@/types/client';
-import { cachedFetch, isCacheHit, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
 
 function buildPoints(clientes: ApiCliente[]): ClientPoint[] {
   return clientes
@@ -14,35 +13,17 @@ function buildPoints(clientes: ApiCliente[]): ClientPoint[] {
 
 interface ClientesViewProps {
   canViewDetails?: boolean;
+  initialClientes: ApiCliente[];
 }
 
-export default function ClientesView({ canViewDetails = false }: ClientesViewProps) {
-  const [points,  setPoints]  = useState<ClientPoint[]>([]);
-  // Sem spinner se cache estiver quente — dado aparece instantaneamente
-  const [loading, setLoading] = useState(
-    () => !isCacheHit(CACHE_KEYS.CLIENTES, CACHE_TTL.LONG),
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    cachedFetch<{ clientes: ApiCliente[] }>(
-      CACHE_KEYS.CLIENTES,
-      () => fetch('/api/clientes-mapa').then(r => r.json()),
-      CACHE_TTL.LONG,
-    )
-      .then(json => { if (!cancelled) setPoints(buildPoints(json.clientes ?? [])); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-
-    return () => { cancelled = true; };
-  }, []);
+export default function ClientesView({ canViewDetails = false, initialClientes }: ClientesViewProps) {
+  const points = useMemo(() => buildPoints(initialClientes), [initialClientes]);
 
   return (
     <GlobeExplorer
       points={points}
       theme="vital"
-      loading={loading}
+      loading={false}
       itemLabel={{ singular: 'cliente', plural: 'clientes' }}
       loadingText="Carregando clientes…"
       readOnly={!canViewDetails}
