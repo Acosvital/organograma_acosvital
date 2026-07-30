@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/apiAuth';
 import { apiPost, apiDelete, handleApiError, fetchAllPages } from '@/lib/apiClient';
-import type { Setor } from '@/types/adminCore';
+import { guard } from '@/lib/routeGuard';
+import { parseJsonBody } from '@/lib/validation';
+import { getSetoresList } from '@/lib/data/adminSetores';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,12 +20,12 @@ async function findGmNodeId(): Promise<string | null> {
   return gmNode?.id ?? null;
 }
 
-export async function GET() {
-  const { err } = await requireAuth('editor');
-  if (err) return err;
+export async function GET(request: NextRequest) {
+  const { error } = await guard(request, { role: 'editor' });
+  if (error) return error;
 
   try {
-    const setores = await fetchAllPages<Setor>('/setores', 'setores');
+    const setores = await getSetoresList();
     return NextResponse.json(setores);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao buscar setores.');
@@ -33,12 +34,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { err } = await requireAuth('editor');
-  if (err) return err;
+  const { error } = await guard(request, { role: 'editor', action: 'write', sameOrigin: true });
+  if (error) return error;
 
-  let body: unknown;
-  try { body = await request.json(); }
-  catch { return NextResponse.json({ error: 'JSON inválido.' }, { status: 400 }); }
+  const { body, error: bodyErr } = await parseJsonBody(request);
+  if (bodyErr) return bodyErr;
 
   const b = body as Record<string, unknown>;
   if (!b.nome || !b.descricao) {

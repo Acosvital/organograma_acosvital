@@ -1,14 +1,21 @@
-import { levelColors, levelNames } from '@/data/orgData';
-import OrgChartRealtimeWrapper from '@/components/OrgChart/OrgChartRealtimeWrapper';
-import styles from './page.module.css';
+import { requireAuth } from '@/lib/apiAuth';
+import { getUnidadesList } from '@/lib/data/unidades';
+import UnidadeSelectorView from './UnidadeSelectorView';
 
-export default function Home() {
-  return (
-    <div className={styles.page}>
-      <OrgChartRealtimeWrapper
-        levelColors={levelColors}
-        levelNames={levelNames}
-      />
-    </div>
-  );
+export const dynamic = 'force-dynamic';
+
+export default async function Home() {
+  const auth = await requireAuth('viewer');
+
+  let unidades: Awaited<ReturnType<typeof getUnidadesList>> = [];
+  let error = false;
+  if (!auth.err) {
+    try {
+      unidades = await getUnidadesList();
+    } catch {
+      error = true;
+    }
+  }
+
+  return <UnidadeSelectorView unidades={unidades} error={error} />;
 }

@@ -1,21 +1,31 @@
 "use client";
 
+import Link from "next/link";
 import CenterCard from "@/components/CenterCard/CenterCard";
 import NodeCard from "@/components/NodeCard/NodeCard";
 import SectorCard from "@/components/SectorCard/SectorCard";
 import { useFsMode } from "@/lib/fsContext";
 import { Connection, OrgNode, PositionedNode } from "@/types/orgChart";
 import {
+  OVERVIEW_NODE_RADIUS,
   SECTOR_NODE_RADIUS,
   SECTOR_RING_RADII,
   calculateConnections,
   calculateEvenSectorLayout,
   getSubtree,
 } from "@/utils/radialLayout";
+import { colorGradientId, radiusClipId } from "@/utils/svgDefs";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import styles from "./OrgChart.module.css";
 import OrgTreeView from "./OrgTreeView";
 import Starfield from "./Starfield";
+
+// Raios possíveis de node/sector cards (conjunto pequeno e fixo, por nível/BFS-depth)
+// — usado para gerar os <clipPath> compartilhados das fotos (ver <defs> do SVG).
+const ALL_NODE_RADII = [
+  ...Object.values(OVERVIEW_NODE_RADIUS),
+  ...Object.values(SECTOR_NODE_RADIUS),
+];
 
 interface Props {
   // Pre-computed overview (levels 0-2 only)
@@ -25,6 +35,8 @@ interface Props {
   allNodes: OrgNode[];
   levelNames: Record<number, string>;
   levelColors: Record<number, string>;
+  /** Unidade sendo exibida — usada para filtrar pessoas de outras unidades. */
+  unidadeId?: string;
 }
 
 interface ViewBox {
@@ -57,6 +69,7 @@ export default function OrgChart({
   allNodes,
   levelNames,
   levelColors,
+  unidadeId,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -92,6 +105,8 @@ export default function OrgChart({
   const lastInteraction = useRef<number>(Date.now());
   const animFrameRef = useRef<number | null>(null);
   const pressedSectorIdRef = useRef<string | null>(null);
+  const pendingPointerMoveRef = useRef<number | null>(null);
+  const pendingPointerEventRef = useRef<React.PointerEvent<SVGSVGElement> | null>(null);
 
   // ── Busca, fly-to, highlight e modo de visualização ──────────────────────
   const [viewMode, setViewMode] = useState<"radial" | "tree">("radial");
@@ -99,6 +114,7 @@ export default function OrgChart({
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [flyTarget, setFlyTarget] = useState<string | null>(null);
+  const [showOrbitalAnimation, setShowOrbitalAnimation] = useState(true);
 
   const minW = activeSectorId ? MIN_W_SC : MIN_W_OV;
   const maxW = activeSectorId ? MAX_W_SC : MAX_W_OV;
@@ -149,97 +165,41 @@ export default function OrgChart({
     () => () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (inertiaFrame.current) cancelAnimationFrame(inertiaFrame.current);
+      if (pendingPointerMoveRef.current) cancelAnimationFrame(pendingPointerMoveRef.current);
     },
     [],
   );
 
-  // ── Lazy loading de filhos via ?parent_id= ────────────────────────────
-  const [extraNodes, setExtraNodes] = useState<OrgNode[]>([]);
-  const loadedParentIds  = useRef(new Set<string>());
-  const prefetchStarted  = useRef(false);
-
-  // Nós completos = prop allNodes + lazy-loaded extras (sem duplicatas)
-  const mergedNodes = useMemo(() => {
-    if (extraNodes.length === 0) return allNodes;
-    const seen = new Set(allNodes.map((n) => n.id));
-    return [...allNodes, ...extraNodes.filter((n) => !seen.has(n.id))];
-  }, [allNodes, extraNodes]);
-
-  // BFS: busca todos os descendentes de um nó via /api/org?parent_id=
-  // `inFlightParentIds` evita disparos duplicados simultâneos (BFS + efeito da
-  // Lista podem pedir o mesmo parentId ao mesmo tempo). `loadedParentIds` só é
-  // marcado em caso de SUCESSO com filhos encontrados — uma resposta vazia ou
-  // uma falha de rede não "envenenam" o cache, então um setor que estava vazio
-  // (sem filhos ainda) é corretamente re-tentado da próxima vez que for aberto,
-  // ao invés de ficar travado em "0 filhos" para sempre.
-  const inFlightParentIds = useRef(new Set<string>());
-  const fetchChildren = useCallback(async (parentId: string): Promise<void> => {
-    if (loadedParentIds.current.has(parentId) || inFlightParentIds.current.has(parentId)) return;
-    inFlightParentIds.current.add(parentId);
-    try {
-      const res = await fetch(
-        `/api/org?parent_id=${encodeURIComponent(parentId)}`,
-      );
-      if (!res.ok) return;
-      const nodes: OrgNode[] = await res.json();
-      if (!Array.isArray(nodes) || nodes.length === 0) return;
-      loadedParentIds.current.add(parentId);
-      setExtraNodes((prev) => {
-        const seen = new Set(prev.map((n) => n.id));
-        const fresh = nodes.filter((n) => !seen.has(n.id));
-        return fresh.length > 0 ? [...prev, ...fresh] : prev;
-      });
-      // Continua o BFS para todos os filhos encontrados
-      await Promise.all(nodes.map((n) => fetchChildren(n.id)));
-    } catch {
-      /* best-effort */
-    } finally {
-      inFlightParentIds.current.delete(parentId);
-    }
+  // Pausar animação orbital após 20s para economizar CPU/bateria
+  useEffect(() => {
+    const timer = setTimeout(() => setShowOrbitalAnimation(false), 20000);
+    return () => clearTimeout(timer);
   }, []);
 
-  /** Dispara BFS a partir de todos os nós conhecidos (não apenas setores).
-   *  `fetchChildren` já deduplica via `loadedParentIds`, portanto chamar várias
-   *  vezes é seguro — só faz a requisição da primeira vez. */
-  const eagerLoadAll = useCallback(() => {
-    allNodes.forEach((n) => {
-      const canonId = n.id.startsWith('sec-') ? n.id.slice(4) : n.id;
-      fetchChildren(canonId);
-    });
-  }, [allNodes, fetchChildren]);
+  // Nós completos = allNodes (já vem com a árvore inteira desde o fetch inicial,
+  // via SSR ou pelo /api/org?unidade_id=). Filtra pessoas de outra unidade aqui.
+  // Só a Diretoria (nível 0) é papel global e sempre aparece — Gerência Geral
+  // (nível 1) e demais pessoas são filtradas pela unidade de cada uma.
+  const mergedNodes = useMemo(() => {
+    if (!unidadeId) return allNodes;
+    return allNodes.filter((n) => n.isSector || n.level === 0 || n.unidadeId === unidadeId);
+  }, [allNodes, unidadeId]);
 
-  // Prefetch silencioso: logo que os nós raiz chegam, carrega a árvore completa
-  // em background (1 s de atraso para não competir com a animação orbital).
-  // Faz com que Lista e Busca estejam prontos quando o usuário precisar.
-  useEffect(() => {
-    if (allNodes.length === 0 || prefetchStarted.current) return;
-    prefetchStarted.current = true;
-    const t = setTimeout(eagerLoadAll, 1000);
-    return () => clearTimeout(t);
-  }, [allNodes, eagerLoadAll]);
+  // Cores distintas em uso (níveis fixos + cor custom de cada setor) — usadas para
+  // gerar os <radialGradient> compartilhados no <defs> do SVG (ver renderização
+  // abaixo). Evita recriar um gradiente por nó (250+ pessoas → só ~1 por cor).
+  const usedColors = useMemo(() => {
+    const set = new Set<string>(Object.values(levelColors));
+    for (const n of allNodes) if (n.isSector && n.sectorColor) set.add(n.sectorColor);
+    return [...set];
+  }, [allNodes, levelColors]);
 
-  // Lista: garante carregamento completo imediato (caso o prefetch ainda não tenha terminado).
-  useEffect(() => {
-    if (viewMode !== 'tree') return;
-    eagerLoadAll();
-  }, [viewMode, eagerLoadAll]);
-
-  // Busca: inicia carregamento assim que o usuário começa a digitar.
-  useEffect(() => {
-    if (!query) return;
-    eagerLoadAll();
-  }, [query, eagerLoadAll]);
-
-  const openSector = useCallback(
-    (id: string) => {
-      // Supabase importa setores com prefixo 'sec-'; a API externa usa o UUID puro.
-      // Normaliza para o UUID canônico para que fetchChildren e getSubtree coincidam.
-      const canonId = id.startsWith("sec-") ? id.slice(4) : id;
-      setSectorStack((prev) => [...prev, canonId]);
-      fetchChildren(canonId);
-    },
-    [fetchChildren],
-  );
+  const openSector = useCallback((id: string) => {
+    // Supabase importa setores com prefixo 'sec-'; a API externa usa o UUID puro.
+    // Normaliza para o UUID canônico para que getSubtree encontre os filhos certos.
+    const canonId = id.startsWith("sec-") ? id.slice(4) : id;
+    setSectorStack((prev) => [...prev, canonId]);
+  }, []);
 
   const goBack = useCallback(() => {
     setSectorStack((prev) => prev.slice(0, -1));
@@ -650,9 +610,12 @@ export default function OrgChart({
     }
   };
 
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!activePointers.current.has(e.pointerId)) return;
-    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const processPointerMove = useCallback(() => {
+    const e = pendingPointerEventRef.current;
+    if (!e || !activePointers.current.has(e.pointerId)) {
+      pendingPointerMoveRef.current = null;
+      return;
+    }
 
     // Detecta se é arraste (> 8 px de movimento)
     if (!didDrag.current) {
@@ -712,6 +675,18 @@ export default function OrgChart({
       lastPanEvent.current = { x: e.clientX, y: e.clientY, t: now };
 
       setVb({ ...vbRef.current, x: po.vbX - dx, y: po.vbY - dy });
+    }
+
+    pendingPointerMoveRef.current = null;
+  }, [minW, maxW, setVb]);
+
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!activePointers.current.has(e.pointerId)) return;
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pendingPointerEventRef.current = e;
+
+    if (!pendingPointerMoveRef.current) {
+      pendingPointerMoveRef.current = requestAnimationFrame(processPointerMove);
     }
   };
 
@@ -812,11 +787,9 @@ export default function OrgChart({
   // viewBox gerenciado diretamente via DOM (não via React state) para máxima fluidez
 
   // ── Connection renderer ───────────────────────────────────────────────
-  function renderConnections(
-    conns: Connection[],
-    posMap?: Map<string, PositionedNode>,
-  ) {
-    return conns.map((c) => {
+  const renderConnections = useCallback(
+    (conns: Connection[], posMap?: Map<string, PositionedNode>) => {
+      return conns.map((c) => {
       const target = posMap?.get(c.toId);
       const color =
         target?.isSector && target.sectorColor
@@ -857,7 +830,9 @@ export default function OrgChart({
         </g>
       );
     });
-  }
+    },
+    [levelColors],
+  );
 
   // ── Orbital intro + permanent alive animation ─────────────────────────────
   // Path: 360° director → radial to GM ring → 360° GM ring (all GMs) → stem → 360° sector ring
@@ -1419,6 +1394,14 @@ export default function OrgChart({
     >
       {/* ── Barra: alternância de modo (Mapa/Lista) + busca ─────────── */}
       <div className={`${styles.toolbar} ${fsMode !== 'none' ? styles.shifted : ''}`}>
+        {unidadeId && (
+          <Link href="/" className={styles.unidadesBackLink} title="Voltar para seleção de unidades">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+            </svg>
+            Unidades
+          </Link>
+        )}
         <div className={styles.segmented}>
           <button
             type="button"
@@ -1649,6 +1632,19 @@ export default function OrgChart({
                     <feMergeNode in="SourceGraphic" />
                   </feMerge>
                 </filter>
+
+                {/* ── Gradientes/clips compartilhados por NodeCard/SectorCard ── */}
+                {usedColors.map((c) => (
+                  <radialGradient key={c} id={colorGradientId(c)} cx="50%" cy="50%" r="50%">
+                    <stop offset="0%"   stopColor={c} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="#142133" stopOpacity={1} />
+                  </radialGradient>
+                ))}
+                {ALL_NODE_RADII.map((r) => (
+                  <clipPath key={r} id={radiusClipId(r)}>
+                    <circle cx={0} cy={0} r={r - 1} />
+                  </clipPath>
+                ))}
               </defs>
 
               {/* Background circle */}
@@ -1697,7 +1693,7 @@ export default function OrgChart({
               {!activeSectorId && (
                 <g key="overview" className={styles.contentGroup}>
                   {/* Orbital intro + alive animation */}
-                  {renderOrbitalAnimation()}
+                  {showOrbitalAnimation && renderOrbitalAnimation()}
                   {/* Dir→GG connections (Bezier) — level < 2 only */}
                   {renderConnections(
                     connections.filter((c) => c.level < 2),
@@ -1733,16 +1729,21 @@ export default function OrgChart({
                     <CenterCard node={overviewDirectors[0]} color={levelColors[0]} hideText={hideText} />
                   )}
                   {overviewDirectors.length > 1 && (() => {
+                    // Diretor principal (isPrimaryDirector) sempre primeiro: define a
+                    // ordem do nome ("Principal & Co-diretor") e a foto padrão do card.
+                    const sorted = [...overviewDirectors].sort(
+                      (a, b) => (b.isPrimaryDirector ? 1 : 0) - (a.isPrimaryDirector ? 1 : 0),
+                    );
                     // Achata nomes que já contenham " & " (dados legados) e remove duplicatas
                     const allNames = [...new Set(
-                      overviewDirectors.flatMap(d =>
+                      sorted.flatMap(d =>
                         d.name.split(/\s+&\s+/).map(n => n.trim()).filter(Boolean)
                       )
                     )];
                     const merged: typeof overviewDirectors[0] = {
-                      ...overviewDirectors[0],
+                      ...sorted[0],
                       name: allNames.join(' & '),
-                      photoUrl: overviewDirectors.find(d => d.photoUrl)?.photoUrl,
+                      photoUrl: sorted[0].photoUrl ?? sorted.find(d => d.photoUrl)?.photoUrl,
                     };
                     return <CenterCard node={merged} color={levelColors[0]} hideText={hideText} />;
                   })()}

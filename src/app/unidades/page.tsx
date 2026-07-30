@@ -1,7 +1,19 @@
+import { requireAuth } from '@/lib/apiAuth';
+import { getUnidadesMapa } from '@/lib/data/unidadesMapa';
 import UnidadesView from './UnidadesView';
 
 export const dynamic = 'force-dynamic';
 
-export default function UnidadesPage() {
-  return <UnidadesView />;
+export default async function UnidadesPage() {
+  const auth = await requireAuth('viewer');
+
+  let unidades: Awaited<ReturnType<typeof getUnidadesMapa>>['unidades'] = [];
+  if (!auth.err) {
+    try {
+      const result = await getUnidadesMapa();
+      unidades = result.unidades;
+    } catch {}
+  }
+
+  return <UnidadesView initialUnidades={unidades} />;
 }

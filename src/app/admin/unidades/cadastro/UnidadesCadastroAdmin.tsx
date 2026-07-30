@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import type { Unidade } from '@/types/adminCore';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../../_icons';
 import styles from '../../crud.module.css';
-import { cachedFetch, invalidateCache, isCacheHit, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
+import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
 
 const BLANK = {
   cnpj: '', razao_social: '', nome_fantasia: '',
@@ -34,11 +34,13 @@ function maskPhone(v: string) {
   return d.replace(/^(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3').trim();
 }
 
-export default function UnidadesCadastroAdmin() {
-  const [unidades,   setUnidades]   = useState<Unidade[]>([]);
-  const [loading,    setLoading]    = useState(
-    () => !isCacheHit(CACHE_KEYS.ADMIN_UNITS, CACHE_TTL.ADMIN),
-  );
+interface Props {
+  initialUnidades: Unidade[];
+}
+
+export default function UnidadesCadastroAdmin({ initialUnidades }: Props) {
+  const [unidades,   setUnidades]   = useState<Unidade[]>(initialUnidades);
+  const [loading,    setLoading]    = useState(false);
   const [search,     setSearch]     = useState('');
   const [filter,     setFilter]     = useState<'todos' | 'matriz' | 'filial'>('todos');
   const [form,       setForm]       = useState<UndForm>(BLANK);
@@ -55,7 +57,7 @@ export default function UnidadesCadastroAdmin() {
   }, []);
 
   const load = useCallback(async (forceRefresh = false) => {
-    if (forceRefresh) invalidateCache(CACHE_KEYS.ADMIN_UNITS, CACHE_KEYS.UNIDADES);
+    if (forceRefresh) invalidateCache(CACHE_KEYS.ADMIN_UNITS);
     setLoading(true);
     try {
       const data = await cachedFetch<Unidade[]>(
@@ -67,8 +69,6 @@ export default function UnidadesCadastroAdmin() {
     } catch {}
     setLoading(false);
   }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   const matrizes = useMemo(() => unidades.filter(u => u.tipo_unidade === 'matriz'), [unidades]);
 

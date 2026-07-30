@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/apiAuth';
 import { apiPut, apiDelete, handleApiError } from '@/lib/apiClient';
+import { guard } from '@/lib/routeGuard';
+import { isValidUUID, badRequest, parseJsonBody } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,12 +10,13 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { err } = await requireAuth('editor');
-  if (err) return err;
+  if (!isValidUUID(id)) return badRequest('ID inválido.');
 
-  let body: unknown;
-  try { body = await request.json(); }
-  catch { return NextResponse.json({ error: 'JSON inválido.' }, { status: 400 }); }
+  const { error } = await guard(request, { role: 'editor', action: 'write', sameOrigin: true });
+  if (error) return error;
+
+  const { body, error: bodyErr } = await parseJsonBody(request);
+  if (bodyErr) return bodyErr;
 
   const b = body as Record<string, unknown>;
   const patch: Record<string, unknown> = {};
@@ -56,12 +58,14 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { err } = await requireAuth('editor');
-  if (err) return err;
+  if (!isValidUUID(id)) return badRequest('ID inválido.');
+
+  const { error } = await guard(request, { role: 'editor', action: 'write', sameOrigin: true });
+  if (error) return error;
 
   try {
     await apiDelete(`/unidades/${id}`);

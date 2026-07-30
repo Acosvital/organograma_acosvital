@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { IcoSearch, IcoX, IcoMapPin, IcoWarn, IcoEmpty } from '../_icons';
 import styles from '../crud.module.css';
 
-interface Cliente {
+export interface Cliente {
   codigo_parceiro_omie: string;
   nome_fantasia:        string;
   email:                string | null;
@@ -40,13 +40,20 @@ function buildAddress(c: Cliente): string {
 
 const LIMIT = 50;
 
-export default function ClientesAdmin() {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [total,    setTotal]    = useState(0);
-  const [page,     setPage]     = useState(1);
-  const [pages,    setPages]    = useState(1);
+interface Props {
+  initialClientes: Cliente[];
+  initialTotal:    number;
+  initialPage:     number;
+  initialPages:    number;
+}
+
+export default function ClientesAdmin({ initialClientes, initialTotal, initialPage, initialPages }: Props) {
+  const [clientes, setClientes] = useState<Cliente[]>(initialClientes);
+  const [total,    setTotal]    = useState(initialTotal);
+  const [page,     setPage]     = useState(initialPage);
+  const [pages,    setPages]    = useState(initialPages);
   const [search,   setSearch]   = useState('');
-  const [loading,  setLoading]  = useState(true);
+  const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState<string | null>(null);
   const [selected, setSelected] = useState<Cliente | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,8 +79,6 @@ export default function ClientesAdmin() {
       setClientes([]);
     } finally { setLoading(false); }
   }, []);
-
-  useEffect(() => { load('', 1); }, [load]);
 
   function handleSearch(value: string) {
     setSearch(value);

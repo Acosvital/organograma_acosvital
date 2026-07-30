@@ -21,19 +21,21 @@ const inflight = new Map<string, Promise<unknown>>();
 
 export const CACHE_TTL = {
   ORG:   5  * 60 * 1000,  // 5 min — organograma (admin pode alterar)
-  LONG:  30 * 60 * 1000,  // 30 min — clientes, unidades (dataset grande, muda pouco)
   ADMIN:  3 * 60 * 1000,  // 3 min — listas do painel admin
 } as const;
 
 export const CACHE_KEYS = {
   ORG:           'org',
-  CLIENTES:      'clientes-mapa',
-  UNIDADES:      'unidades-mapa',
   ADMIN_CARGOS:  'admin-cargos',
   ADMIN_SETORES: 'admin-setores',
   ADMIN_UNITS:   'admin-unidades-rh',
   ADMIN_FUNCS:   'admin-funcionarios',
 } as const;
+
+/** Chave de cache do organograma de uma unidade específica. */
+export function orgCacheKey(unidadeId: string): string {
+  return `org:${unidadeId}`;
+}
 
 // ── API pública ──────────────────────────────────────────────────────────────
 
@@ -46,6 +48,14 @@ export function isCacheHit(key: string, ttlMs: number): boolean {
 /** Remove entradas do cache (force-refresh na próxima leitura). */
 export function invalidateCache(...keys: string[]): void {
   for (const k of keys) store.delete(k);
+}
+
+/** Remove todas as entradas cujo chave começa com o prefixo dado — usado para
+ *  invalidar o organograma de todas as unidades de uma vez (chaves `org:<id>`). */
+export function invalidateCachePrefix(prefix: string): void {
+  for (const k of store.keys()) {
+    if (k.startsWith(prefix)) store.delete(k);
+  }
 }
 
 /**

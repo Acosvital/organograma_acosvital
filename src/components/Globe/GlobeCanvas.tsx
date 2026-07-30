@@ -174,6 +174,27 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
   const biomeGroupsRef = useRef<{ fill: string; features: GeoPermissibleObjects[] }[]>([]);
   const nightCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const nightPathRef   = useRef<GeoPath | null>(null);
+  // Canvas com o blur do terminador dia/noite JÁ aplicado ("baked") — o blur em
+  // si (ctx.filter) é caro; recalculá-lo a cada frame é desperdício, já que o
+  // terminador se desloca pouco de um frame para o outro. Só rebake a cada
+  // NIGHT_UPDATE_MS; nos demais frames apenas um drawImage (blit) barato.
+  const nightBlurredCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const nightUpdateAtRef      = useRef(0);
+  // Gradientes radiais reaproveitados (criados 1x, reposicionados via translate)
+  // em vez de um `createRadialGradient` por ponto/por frame.
+  const vitalGlowGradRef  = useRef<CanvasGradient | null>(null);
+  const hubPinGlowGradRef = useRef<CanvasGradient | null>(null);
+  const arcParticleGradsRef = useRef<CanvasGradient[] | null>(null);
+  // Buffers reaproveitados entre frames (evita alocar array novo + GC a cada tick).
+  const visGroupsBufRef   = useRef<DotGroup[]>([]);
+  const visHubBufRef      = useRef<{ pt: GlobePoint; sx: number; sy: number; fade: number }[]>([]);
+  const occupiedBufRef    = useRef<[number, number, number, number][]>([]);
+  const occupiedHubBufRef = useRef<[number, number, number, number][]>([]);
+  // Sincronização throttled do state `zoom` (usado só pelo % no painel) — o
+  // desenho sempre lê zoomRef.current ao vivo; sem isso, o lerp de zoom e o
+  // wheel forçavam um re-render de todo o componente a cada frame/evento.
+  const lastZoomSyncRef    = useRef(0);
+  const lastSyncedZoomRef  = useRef(1);
 
   useEffect(() => { pointsRef.current = points; }, [points]);
   useEffect(() => { focusedIdRef.current = focusedId ?? null; }, [focusedId]);
@@ -232,10 +253,14 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     setAutoRotate(false);
   }, [focusTarget]);
 
-  // ── Offscreen canvas for night terminator — created once, cleaned on unmount ──
+  // ── Offscreen canvases for night terminator — created once, cleaned on unmount ──
   useEffect(() => {
     nightCanvasRef.current = document.createElement('canvas');
-    return () => { nightCanvasRef.current = null; };
+    nightBlurredCanvasRef.current = document.createElement('canvas');
+    return () => {
+      nightCanvasRef.current = null;
+      nightBlurredCanvasRef.current = null;
+    };
   }, []);
 
   // ── Load geo libraries + world data ──
@@ -496,35 +521,50 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       ctx.strokeStyle = 'rgba(160,190,160,0.30)'; ctx.lineWidth = 0.7; ctx.stroke();
     }
 
-    // ── Day/night terminator — offscreen single-blur technique ──
-    // Renders night + twilight onto a secondary canvas with sharp edges,
-    // then composites to main with ONE blur pass — a single blur has zero steps.
+    // ── Day/night terminator — offscreen single-blur technique, "baked" e reaproveitado ──
+    // O blur (ctx.filter) é a operação mais cara deste componente por frame; o
+    // terminador se desloca pouco entre frames consecutivos, então só é
+    // recalculado + desfocado a cada NIGHT_UPDATE_MS. Nos demais frames, apenas
+    // um drawImage (blit) do resultado já borrado — sem custo de filter.
     {
       const nc = nightCanvasRef.current;
-      if (nc) {
-        const gc = d3geo.geoCircle().center([antiLon, antiLat]).precision(1.5);
+      const ncBlurred = nightBlurredCanvasRef.current;
+      if (nc && ncBlurred) {
         if (nc.width !== cv.width || nc.height !== cv.height) {
           nc.width = cv.width; nc.height = cv.height;
+          ncBlurred.width = cv.width; ncBlurred.height = cv.height;
+          nightUpdateAtRef.current = 0; // força rebake após resize
         }
-        const nctx = nc.getContext('2d')!;
-        nctx.clearRect(0, 0, nc.width, nc.height);
 
-        // Reutiliza o geoPath em vez de criar novo objeto a cada frame
-        if (!nightPathRef.current) nightPathRef.current = d3geo.geoPath().projection(proj);
-        const nPath = nightPathRef.current.context(nctx);
-        nctx.beginPath();
-        nPath(gc.radius(98)() as unknown as GeoPermissibleObjects);
-        nctx.fillStyle = 'rgba(0,3,15,0.28)'; nctx.fill();
-        nctx.beginPath();
-        nPath(gc.radius(90)() as unknown as GeoPermissibleObjects);
-        nctx.fillStyle = 'rgba(0,3,15,0.58)'; nctx.fill();
+        const NIGHT_UPDATE_MS = 66; // ~15fps é suficiente para um overlay já borrado
+        if (timestamp - nightUpdateAtRef.current > NIGHT_UPDATE_MS) {
+          nightUpdateAtRef.current = timestamp;
+          const gc = d3geo.geoCircle().center([antiLon, antiLat]).precision(1.5);
+          const nctx = nc.getContext('2d')!;
+          nctx.clearRect(0, 0, nc.width, nc.height);
 
-        const blurPx = Math.max(5, R * 0.055);
+          // Reutiliza o geoPath em vez de criar novo objeto a cada frame
+          if (!nightPathRef.current) nightPathRef.current = d3geo.geoPath().projection(proj);
+          const nPath = nightPathRef.current.context(nctx);
+          nctx.beginPath();
+          nPath(gc.radius(98)() as unknown as GeoPermissibleObjects);
+          nctx.fillStyle = 'rgba(0,3,15,0.28)'; nctx.fill();
+          nctx.beginPath();
+          nPath(gc.radius(90)() as unknown as GeoPermissibleObjects);
+          nctx.fillStyle = 'rgba(0,3,15,0.58)'; nctx.fill();
+
+          // "Bake" do blur — roda só aqui, não no frame principal
+          const blurPx = Math.max(5, R * 0.055);
+          const bctx = ncBlurred.getContext('2d')!;
+          bctx.clearRect(0, 0, ncBlurred.width, ncBlurred.height);
+          bctx.filter = `blur(${blurPx.toFixed(1)}px)`;
+          bctx.drawImage(nc, 0, 0);
+          bctx.filter = 'none';
+        }
+
         ctx.save();
         ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.clip();
-        ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
-        ctx.drawImage(nc, 0, 0);
-        ctx.filter = 'none';
+        ctx.drawImage(ncBlurred, 0, 0); // blit barato — sem filter
         ctx.restore();
       }
     }
@@ -595,7 +635,8 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
 
-      const occupied: [number, number, number, number][] = [];
+      const occupied = occupiedBufRef.current;
+      occupied.length = 0;
       const PAD = 3;
 
       const overlaps = (x: number, y: number, w: number, h: number): boolean => {
@@ -742,6 +783,21 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         ctx.strokeStyle = 'rgba(220,110,28,0.2)';  ctx.lineWidth = 8;  ctx.stroke();
         ctx.strokeStyle = 'rgba(255,160,48,0.92)'; ctx.lineWidth = 2.2; ctx.stroke();
 
+        // 3 gradientes fixos (um por tier de partícula) criados 1x e reaproveitados
+        // via translate — antes eram até 3 novos gradientes por arco, por frame.
+        if (!arcParticleGradsRef.current) {
+          arcParticleGradsRef.current = [0, 1, 2].map((p) => {
+            const sz = p === 0 ? 13 : p === 1 ? 7 : 4;
+            const al = p === 0 ? 1  : p === 1 ? 0.6 : 0.35;
+            const g = ctx.createRadialGradient(0, 0, 0, 0, 0, sz);
+            g.addColorStop(0, `rgba(255,242,165,${al})`);
+            g.addColorStop(0.35, `rgba(255,145,38,${al * 0.75})`);
+            g.addColorStop(1, 'rgba(194,65,12,0)');
+            return g;
+          });
+        }
+        const arcGrads = arcParticleGradsRef.current;
+
         const interp = d3geo.geoInterpolate(
           [pts[i].lon, pts[i].lat],
           [pts[j].lon, pts[j].lat],
@@ -756,13 +812,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
           if (!pp) continue;
           const [ppx, ppy] = pp;
           const sz = p === 0 ? 13 : p === 1 ? 7 : 4;
-          const al = p === 0 ? 1  : p === 1 ? 0.6 : 0.35;
-          const pg = ctx.createRadialGradient(ppx, ppy, 0, ppx, ppy, sz);
-          pg.addColorStop(0, `rgba(255,242,165,${al})`);
-          pg.addColorStop(0.35, `rgba(255,145,38,${al * 0.75})`);
-          pg.addColorStop(1, 'rgba(194,65,12,0)');
-          ctx.fillStyle = pg;
-          ctx.beginPath(); ctx.arc(ppx, ppy, sz, 0, TAU); ctx.fill();
+          ctx.fillStyle = arcGrads[p];
+          ctx.translate(ppx, ppy);
+          ctx.beginPath(); ctx.arc(0, 0, sz, 0, TAU); ctx.fill();
+          ctx.translate(-ppx, -ppy);
         }
       }
     }
@@ -770,8 +823,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     // ── Points / pins — VITAL THEME ──
     if (theme === 'vital' && pts.length > 0) {
       // Groups precomputed in useEffect when points change (was O(n) Map build every frame)
-      // Screen positions still computed per-frame since they depend on current rotation/zoom
-      const visGroups: DotGroup[] = [];
+      // Screen positions still computed per-frame since they depend on current rotation/zoom.
+      // Buffer reaproveitado entre frames (evita alocar array novo + GC a cada tick).
+      const visGroups = visGroupsBufRef.current;
+      visGroups.length = 0;
       for (const g of precomputedGroupsRef.current) {
         if (!isVis(g.lon, g.lat)) continue;
         const pp = proj([g.lon, g.lat]);
@@ -808,15 +863,21 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         }
 
         // Step 3b — Orbe de glow individual por ponto (até 80 visíveis)
+        // Gradiente criado 1x e reaproveitado via translate (antes: 1 novo por ponto/frame).
         if (visGroups.length <= 80) {
+          if (!vitalGlowGradRef.current) {
+            const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+            g.addColorStop(0,   'rgba(239,68,68,0.60)');
+            g.addColorStop(0.45,'rgba(239,68,68,0.20)');
+            g.addColorStop(1,   'rgba(239,68,68,0)');
+            vitalGlowGradRef.current = g;
+          }
           ctx.globalAlpha = bulkAlpha;
+          ctx.fillStyle = vitalGlowGradRef.current;
           for (const { sx, sy } of visGroups) {
-            const og = ctx.createRadialGradient(sx, sy, 0, sx, sy, 20);
-            og.addColorStop(0,   'rgba(239,68,68,0.60)');
-            og.addColorStop(0.45,'rgba(239,68,68,0.20)');
-            og.addColorStop(1,   'rgba(239,68,68,0)');
-            ctx.fillStyle = og;
-            ctx.beginPath(); ctx.arc(sx, sy, 20, 0, TAU); ctx.fill();
+            ctx.translate(sx, sy);
+            ctx.beginPath(); ctx.arc(0, 0, 20, 0, TAU); ctx.fill();
+            ctx.translate(-sx, -sy);
           }
           ctx.globalAlpha = 1;
         }
@@ -886,7 +947,9 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       const HALF_PI_HUB = Math.PI / 2;
 
       // Pré-projeta os pinos visíveis e calcula o fade conforme a distância da borda.
-      const visHub: { pt: GlobePoint; sx: number; sy: number; fade: number }[] = [];
+      // Buffer reaproveitado entre frames (evita alocar array novo + GC a cada tick).
+      const visHub = visHubBufRef.current;
+      visHub.length = 0;
       for (const pt of pts) {
         if (!isVis(pt.lon, pt.lat)) continue;
         const pp = proj([pt.lon, pt.lat]);
@@ -898,6 +961,15 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       }
 
       // ── Marcadores: anéis pulsantes + brilho + ponto (todos os pinos visíveis) ──
+      // Gradiente do glow criado 1x e reaproveitado via translate (antes: 1 novo por
+      // pino/frame, sem cap — o pior caso desta seção).
+      if (!hubPinGlowGradRef.current) {
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 28);
+        g.addColorStop(0, 'rgba(255,125,42,0.92)');
+        g.addColorStop(0.28, 'rgba(194,65,12,0.48)');
+        g.addColorStop(1, 'rgba(194,65,12,0)');
+        hubPinGlowGradRef.current = g;
+      }
       for (const { sx, sy, fade } of visHub) {
         for (let r = 0; r < 3; r++) {
           const ph = ((t * 1.25 + r * 0.42) % 1);
@@ -908,12 +980,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         }
         ctx.globalAlpha = fade;
 
-        const og = ctx.createRadialGradient(sx, sy, 0, sx, sy, 28);
-        og.addColorStop(0, 'rgba(255,125,42,0.92)');
-        og.addColorStop(0.28, 'rgba(194,65,12,0.48)');
-        og.addColorStop(1, 'rgba(194,65,12,0)');
-        ctx.fillStyle = og;
-        ctx.beginPath(); ctx.arc(sx, sy, 28, 0, TAU); ctx.fill();
+        ctx.fillStyle = hubPinGlowGradRef.current;
+        ctx.translate(sx, sy);
+        ctx.beginPath(); ctx.arc(0, 0, 28, 0, TAU); ctx.fill();
+        ctx.translate(-sx, -sy);
 
         ctx.fillStyle = '#ffffff';
         ctx.beginPath(); ctx.arc(sx, sy, 5.5, 0, TAU); ctx.fill();
@@ -923,7 +993,8 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       ctx.globalAlpha = 1;
 
       // ── Rótulos: pinos mais centrais primeiro; pula os que colidem ──
-      const occupiedHub: [number, number, number, number][] = [];
+      const occupiedHub = occupiedHubBufRef.current;
+      occupiedHub.length = 0;
       const PADH = 4;
       const overlapsHub = (x: number, y: number, w: number, h: number): boolean => {
         for (const [ox, oy, ow, oh] of occupiedHub) {
@@ -936,8 +1007,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
       ctx.font = '700 13px "Fira Sans",system-ui,sans-serif';
-      // Ordena por fade decrescente: rótulos centrais têm prioridade na reserva de espaço.
-      for (const { pt, sx, sy, fade } of [...visHub].sort((a, b) => b.fade - a.fade)) {
+      // Ordena por fade decrescente in-place (visHub já é um buffer próprio, não
+      // precisa copiar): rótulos centrais têm prioridade na reserva de espaço.
+      visHub.sort((a, b) => b.fade - a.fade);
+      for (const { pt, sx, sy, fade } of visHub) {
         if (fade < 0.3) continue; // perto da borda → só o marcador
         const lw = ctx.measureText(pt.label).width;
         const lx = sx + 15;
@@ -1048,7 +1121,18 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         } else {
           zoomRef.current += dz * 0.12 * (dt / TARGET_DT);
         }
-        setZoom(zoomRef.current);
+      }
+
+      // Sincroniza o state `zoom` (só usado pelo % exibido no painel) de forma
+      // throttled — o desenho já lê zoomRef.current ao vivo a cada frame; sem
+      // isso, o lerp de zoom e o wheel forçavam um re-render de todo o
+      // componente (painel, título, tooltip) a cada frame/evento.
+      if (timestamp - lastZoomSyncRef.current > 100) {
+        lastZoomSyncRef.current = timestamp;
+        if (Math.abs(zoomRef.current - lastSyncedZoomRef.current) > 0.005) {
+          lastSyncedZoomRef.current = zoomRef.current;
+          setZoom(zoomRef.current);
+        }
       }
 
       draw(timestamp);
@@ -1064,9 +1148,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     const cv = canvasRef.current;
     if (!cv) return;
 
+    // setZoom não é chamado aqui — o loop de animação sincroniza o state a partir
+    // de zoomRef de forma throttled (evita um re-render por evento de wheel/pinch).
     const applyZoom = (factor: number) => {
       zoomRef.current = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomRef.current * factor));
-      setZoom(zoomRef.current);
     };
 
     // ── Vital theme: click detection on dots ──

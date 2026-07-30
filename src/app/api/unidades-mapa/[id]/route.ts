@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { apiGet } from '@/lib/apiClient';
+import { guard } from '@/lib/routeGuard';
+import { isValidUUID, badRequest } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,10 +30,15 @@ export interface ApiUnidadeDetail {
 }
 
 export async function GET(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  if (!isValidUUID(id)) return badRequest('ID inválido.');
+
+  const { error } = await guard(request, { role: 'viewer' });
+  if (error) return error;
+
   try {
     const data = await apiGet<ApiUnidadeDetail>(`/mapa_unidades/${id}`);
     return NextResponse.json(data);

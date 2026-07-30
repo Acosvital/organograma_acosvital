@@ -1,7 +1,9 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import fs from 'fs';
 import path from 'path';
 
@@ -17,6 +19,15 @@ export async function signIn(
 
   if (!email || !password) {
     return { error: 'Preencha e-mail e senha.' };
+  }
+
+  // Freio anti brute-force: limita tentativas de login por IP (bucket 'auth',
+  // 10/min) ANTES de bater no Supabase. Server action não recebe Request, então
+  // o IP vem de headers().
+  const ip = getClientIp(await headers());
+  const rl = rateLimit(ip, 'auth');
+  if (!rl.ok) {
+    return { error: `Muitas tentativas de login. Aguarde ${Math.ceil(rl.retryAfterMs / 1000)}s e tente de novo.` };
   }
 
   const supabase = await createClient();

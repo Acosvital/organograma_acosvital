@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import type { Cargo } from '@/types/adminCore';
 import { CARGO_LEVELS, NVL_LABELS } from '@/types/adminCore';
 import { levelColors } from '@/data/orgData';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../_icons';
 import styles from '../crud.module.css';
-import { cachedFetch, invalidateCache, isCacheHit, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
+import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
 
 function LvlBadge({ nvl }: { nvl: number }) {
   const color = levelColors[nvl] ?? '#94a3b8';
@@ -23,11 +23,13 @@ function LvlBadge({ nvl }: { nvl: number }) {
 
 const BLANK = { nome: '', nvl_permissao: 4, descricao: '', ativo: true };
 
-export default function CargosAdmin() {
-  const [cargos,  setCargos]  = useState<Cargo[]>([]);
-  const [loading, setLoading] = useState(
-    () => !isCacheHit(CACHE_KEYS.ADMIN_CARGOS, CACHE_TTL.ADMIN),
-  );
+interface Props {
+  initialCargos: Cargo[];
+}
+
+export default function CargosAdmin({ initialCargos }: Props) {
+  const [cargos,  setCargos]  = useState<Cargo[]>(initialCargos);
+  const [loading, setLoading] = useState(false);
   const [search,   setSearch]   = useState('');
   const [filter,   setFilter]   = useState<'todos' | 'ativos' | 'inativos'>('ativos');
   const [sortField, setSortField] = useState<'nivel' | 'nome'>('nivel');
@@ -56,8 +58,6 @@ export default function CargosAdmin() {
     } catch {}
     setLoading(false);
   }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
     let list = cargos;

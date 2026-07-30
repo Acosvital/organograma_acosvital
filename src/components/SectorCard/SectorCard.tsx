@@ -1,4 +1,5 @@
 import { PositionedNode } from '@/types/orgChart';
+import { colorGradientId } from '@/utils/svgDefs';
 import styles from './SectorCard.module.css';
 
 interface Props {
@@ -43,12 +44,6 @@ export default function SectorCard({ node, color, onClick, hideText = false }: P
       aria-label={`Abrir setor ${node.name}`}
     >
       <title>Setor: {node.name} — clique para expandir</title>
-      <defs>
-        <radialGradient id={`grad-sec-${node.id}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor={color} stopOpacity={0.2} />
-          <stop offset="100%" stopColor="#142133" stopOpacity={1} />
-        </radialGradient>
-      </defs>
 
       <g className={styles.visual}>
         {/* Outer glow */}
@@ -75,8 +70,8 @@ export default function SectorCard({ node, color, onClick, hideText = false }: P
           className={styles.border}
         />
 
-        {/* Background fill */}
-        <circle cx={0} cy={0} r={r} fill={`url(#grad-sec-${node.id})`} />
+        {/* Background fill — gradiente compartilhado por cor (ver OrgChart <defs>) */}
+        <circle cx={0} cy={0} r={r} fill={`url(#${colorGradientId(color)})`} />
 
         {/* Abbreviation (always shown) */}
         <text

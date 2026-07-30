@@ -1,18 +1,22 @@
-import { createClient } from '@/lib/supabase/server';
-import { DEV_AUTH_BYPASS } from '@/lib/devAuth';
+import { getMyRole } from '@/lib/apiAuth';
+import { getClientesMapa } from '@/lib/data/clientesMapa';
 import ClientesView from './ClientesView';
+import type { ApiCliente } from '@/types/client';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ClientesPage() {
-  let canViewDetails = DEV_AUTH_BYPASS;
-  if (!DEV_AUTH_BYPASS) {
+  const role = await getMyRole();
+  const canViewDetails = role === 'admin' || role === 'editor';
+  const canViewData    = role === 'admin' || role === 'editor' || role === 'viewer';
+
+  let clientes: ApiCliente[] = [];
+  if (canViewData) {
     try {
-      const supabase = await createClient();
-      const { data: role } = await supabase.rpc('get_my_role');
-      canViewDetails = role === 'admin' || role === 'editor';
+      const result = await getClientesMapa();
+      clientes = result.clientes as ApiCliente[];
     } catch {}
   }
 
-  return <ClientesView canViewDetails={canViewDetails} />;
+  return <ClientesView canViewDetails={canViewDetails} initialClientes={clientes} />;
 }
