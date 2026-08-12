@@ -205,6 +205,11 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
   // pulsantes dos pontos — o efeito "piscante" fica exagerado/distrativo nessa
   // escala. Atualizado no resize junto com o buffer do canvas.
   const skipPulseRingsRef = useRef(false);
+  // Mesmo gatilho de tela grande, mas para custos de desenho que se somam a
+  // cada frame (estrelas, brilhos decorativos) — o draw() completo do globo
+  // (mapa-múndi + grade + atmosfera) já é pesado; em hardware fraco isso pode
+  // cair pra ~1fps ("tick" a cada segundo em vez de rotação fluida).
+  const reduceFxRef = useRef(false);
   const arcParticleGradsRef = useRef<CanvasGradient[] | null>(null);
   // Buffers reaproveitados entre frames (evita alocar array novo + GC a cada tick).
   const visGroupsBufRef   = useRef<DotGroup[]>([]);
@@ -394,7 +399,11 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     ctx.fillRect(0, 0, W, H);
 
     // ── Stars — varied colors (blue-white / white / warm) with gentle twinkle ──
-    for (const s of starsRef.current) {
+    // Em telas grandes/hardware fraco, desenha só 1 em cada 3 estrelas — 420
+    // arcos + sin() por frame é caro demais pra somar ao resto do desenho.
+    const starStep = reduceFxRef.current ? 3 : 1;
+    for (let i = 0; i < starsRef.current.length; i += starStep) {
+      const s = starsRef.current[i];
       const tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * s.spd + s.b * 25));
       ctx.globalAlpha = s.b * 0.78 * tw;
       ctx.fillStyle = s.c < 0.28 ? '#b8d8ff' : s.c < 0.65 ? '#e8f2ff' : '#fff6e0';
@@ -416,6 +425,9 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     ctx.fill();
 
     // ── Bright limb — thin luminous ring at globe edge (as seen from space) ──
+    // Puramente decorativo — pulado em telas grandes pra economizar 1 gradiente
+    // radial + fill por frame.
+    if (!reduceFxRef.current) {
     const limb = ctx.createRadialGradient(cx, cy, R * 0.97, cx, cy, R * 1.10);
     limb.addColorStop(0,    'rgba(60,130,255,0.00)');
     limb.addColorStop(0.35, 'rgba(100,175,255,0.32)');
@@ -425,6 +437,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     ctx.arc(cx, cy, R * 1.10, 0, TAU);
     ctx.fillStyle = limb;
     ctx.fill();
+    }
 
     // ── Loading state ──
     if (!ready || !projRef.current || !geoLibsRef.current || !pathFnRef.current) {
@@ -490,7 +503,8 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     const sunVis = Math.max(0, Math.cos(_sunVisDist));
 
     // ── Sea glint — broad diffuse sun reflection on ocean ──
-    if (sunVis > 0) {
+    // Puramente decorativo — pulado em telas grandes (1 gradiente radial + fill).
+    if (sunVis > 0 && !reduceFxRef.current) {
       const gx = cx + lightNX * R * 0.30;
       const gy = cy + lightNY * R * 0.30;
       const seaGlint = ctx.createRadialGradient(gx, gy, 0, gx, gy, R * 0.72);
@@ -1094,7 +1108,9 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       const fullDpr = window.devicePixelRatio || 1;
       const physW = window.screen.width  * fullDpr;
       const physH = window.screen.height * fullDpr;
-      skipPulseRingsRef.current = Math.max(physW, physH) >= 3840 && Math.min(physW, physH) >= 2160;
+      const isLargeDisplay = Math.max(physW, physH) >= 3840 && Math.min(physW, physH) >= 2160;
+      skipPulseRingsRef.current = isLargeDisplay;
+      reduceFxRef.current = isLargeDisplay;
     });
     ro.observe(cv);
     return () => ro.disconnect();
@@ -1403,6 +1419,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         ref={canvasRef}
         className={styles.canvas}
         role="img"
+        onContextMenu={(e) => e.preventDefault()}
         aria-label={
           theme === 'vital'
             ? `Globo interativo com ${displayPoints} clientes da Aços Vital distribuídos no mapa`

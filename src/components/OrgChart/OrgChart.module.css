@@ -117,6 +117,10 @@
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
+  /* Toque prolongado abre o menu nativo (salvar imagem, inspecionar) antes
+     mesmo do onContextMenu do React disparar em alguns Android/Chrome. */
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
 }
 
 /* ── Legend ──────────────────────────────────────────────────────────── */
