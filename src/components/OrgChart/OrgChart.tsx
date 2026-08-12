@@ -72,6 +72,16 @@ export default function OrgChart({
   unidadeId,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
+  // Cache do getBoundingClientRect() do SVG — invalidado só em resize/gesto novo,
+  // evita forçar layout do navegador a cada pointermove durante pan/pinch/wheel
+  // (crítico em toque contínuo, onde isso disparava a cada frame).
+  const svgRectRef = useRef<DOMRect | null>(null);
+  const getSvgRect = useCallback(() => {
+    if (!svgRectRef.current && svgRef.current) {
+      svgRectRef.current = svgRef.current.getBoundingClientRect();
+    }
+    return svgRectRef.current;
+  }, []);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasTiltRef = useRef<HTMLDivElement>(null);
   const lastCullSyncRef = useRef(0);
@@ -483,8 +493,8 @@ export default function OrgChart({
   // ── Duplo toque → zoom in ─────────────────────────────────────────────
   const handleDoubleTap = useCallback(
     (clientX: number, clientY: number) => {
-      if (!svgRef.current) return;
-      const rect = svgRef.current.getBoundingClientRect();
+      const rect = getSvgRect();
+      if (!rect) return;
       const cur = vbRef.current;
       const wx = cur.x + ((clientX - rect.left) / rect.width) * cur.w;
       const wy = cur.y + ((clientY - rect.top) / rect.height) * cur.h;
@@ -500,8 +510,18 @@ export default function OrgChart({
         350,
       );
     },
-    [animateTo, minW],
+    [animateTo, minW, getSvgRect],
   );
+
+  // Invalida o rect cacheado quando o SVG muda de tamanho (resize, rotação,
+  // sidebar recolhendo/expandindo) — recomputa na próxima leitura, não aqui.
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => { svgRectRef.current = null; });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // ── Auto-reset: volta ao panorama após 3 min sem interação ────────────
   useEffect(() => {
@@ -527,8 +547,8 @@ export default function OrgChart({
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       e.preventDefault();
-      if (!svgRef.current) return;
-      const rect = svgRef.current.getBoundingClientRect();
+      const rect = getSvgRect();
+      if (!rect) return;
       const cur = vbRef.current;
       const mx = cur.x + ((e.clientX - rect.left) / rect.width) * cur.w;
       const my = cur.y + ((e.clientY - rect.top) / rect.height) * cur.h;
@@ -542,7 +562,7 @@ export default function OrgChart({
         h: newH,
       });
     },
-    [setVb, minW, maxW],
+    [setVb, minW, maxW, getSvgRect],
   );
 
   useEffect(() => {
@@ -555,6 +575,10 @@ export default function OrgChart({
   // ── Pointer pan & pinch zoom (mouse + touch + pen) ────────────────────
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+
+    // Início de gesto — garante que o rect cacheado reflita a posição atual
+    // (ex.: sidebar recolhida entre um gesto e outro sem disparar resize do SVG).
+    svgRectRef.current = null;
 
     // Cancela inércia ao iniciar novo toque
     if (inertiaFrame.current) {
@@ -633,10 +657,10 @@ export default function OrgChart({
       // Pinch zoom — zoom em direção ao ponto médio dos dois dedos
       const [p1, p2] = ptrs;
       const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-      if (lastPinchDist.current !== null && svgRef.current) {
+      const rect = lastPinchDist.current !== null ? getSvgRect() : null;
+      if (lastPinchDist.current !== null && rect) {
         const ratio = lastPinchDist.current / dist;
         const cur = vbRef.current;
-        const rect = svgRef.current.getBoundingClientRect();
         const cx =
           cur.x + (((p1.x + p2.x) / 2 - rect.left) / rect.width) * cur.w;
         const cy =
@@ -651,9 +675,10 @@ export default function OrgChart({
         });
       }
       lastPinchDist.current = dist;
-    } else if (ptrs.length === 1 && isPanning.current && svgRef.current) {
+    } else if (ptrs.length === 1 && isPanning.current) {
       // Pan com um dedo
-      const rect = svgRef.current.getBoundingClientRect();
+      const rect = getSvgRect();
+      if (!rect) return;
       const po = panOrigin.current;
       const dx = ((e.clientX - po.mouseX) / rect.width) * po.vbW;
       const dy = ((e.clientY - po.mouseY) / rect.height) * po.vbH;
@@ -678,7 +703,7 @@ export default function OrgChart({
     }
 
     pendingPointerMoveRef.current = null;
-  }, [minW, maxW, setVb]);
+  }, [minW, maxW, setVb, getSvgRect]);
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!activePointers.current.has(e.pointerId)) return;
