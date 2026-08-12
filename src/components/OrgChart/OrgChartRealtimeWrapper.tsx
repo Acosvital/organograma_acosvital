@@ -1,13 +1,18 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import OrgChart from '@/components/OrgChart/OrgChart';
+import dynamic from 'next/dynamic';
 import {
   calculateOverviewLayout, calculateConnections,
   OVERVIEW_RING_RADII, OVERVIEW_NODE_RADIUS,
 } from '@/utils/radialLayout';
 import type { OrgNode } from '@/types/orgChart';
 import { cachedFetch, isCacheHit, orgCacheKey, CACHE_TTL } from '@/lib/dataCache';
+
+const OrgChart = dynamic(() => import('@/components/OrgChart/OrgChart'), {
+  ssr: false,
+  loading: () => null,
+});
 
 const syncDotStyle: React.CSSProperties = {
   position: 'absolute',

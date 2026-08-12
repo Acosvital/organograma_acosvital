@@ -1,8 +1,13 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import GlobeExplorer from '@/components/Globe/GlobeExplorer';
+import dynamic from 'next/dynamic';
 import type { ClientPoint, ClientPointDetail } from '@/types/client';
+
+const GlobeExplorer = dynamic(() => import('@/components/Globe/GlobeExplorer'), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface ApiUnidade {
   id:            string;
