@@ -95,9 +95,20 @@ export default function Starfield({ vbRef, baseW }: Props) {
 
     let raf = 0;
     let last = { cx: NaN, cy: NaN, z: NaN };
+    let lastFrameAt = 0;
     const start = performance.now();
+    // Fundo puramente decorativo — 30fps é imperceptível aqui e corta a
+    // metade do custo de CPU (gradientes + 230 estrelas) em SoCs móveis
+    // fracos (ex. painéis touch Android), que rodam isso o tempo todo.
+    const FRAME_INTERVAL_MS = 1000 / 30;
 
     const draw = (now: number) => {
+      if (now - lastFrameAt < FRAME_INTERVAL_MS) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      lastFrameAt = now;
+
       const vb = vbRef.current;
       const camX = vb.x + vb.w / 2;
       const camY = vb.y + vb.h / 2;
