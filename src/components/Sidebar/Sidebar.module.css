@@ -31,8 +31,11 @@
     0 8px 40px rgba(0, 0, 0, 0.70),
     0 2px 12px rgba(0, 0, 0, 0.45);
   background: rgba(6, 9, 22, 0.88);
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  /* Fundo já é 88% opaco — blur alto some por baixo, então reduzir o raio
+     custa quase nada visualmente e evita recompositar uma área grande e
+     fixa a cada frame em GPUs móveis fracas (painéis touch Android). */
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
   z-index: 200;
   overflow: hidden;
 
@@ -71,8 +74,8 @@
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.10);
   background: rgba(6, 9, 22, 0.88);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
   color: #93c5fd;
   cursor: pointer;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
