@@ -111,6 +111,23 @@ async function loadGeoLibs() {
 
 const ZOOM_MIN  = 0.6;
 const ZOOM_MAX  = 20;
+// Graus de rotação por pixel arrastado, na zoom padrão (1x) — dividido pelo
+// zoom atual (ver uso abaixo), então um zoom maior gira menos por pixel e
+// vice-versa. Reduzido de 0.38: em telas grandes o mesmo gesto físico cobre
+// muito mais pixels, então qualquer sensibilidade calibrada num mouse/laptop
+// fica exagerada num painel touch de 65".
+const ROTATE_SENSITIVITY = 0.16;
+// Piso de tempo entre amostras de arraste usado no cálculo de velocidade (ver
+// dragVelLonRef abaixo) — sem isso, dois eventos muito próximos no tempo (comum
+// em touch, que as vezes entrega eventos em lote) geram um "elapsed" perto de
+// 0ms, o que amplifica a velocidade estimada e faz a inércia pós-toque continuar
+// girando o globo sozinha por vários frames. E MAX_DRAG_VEL trava um teto duro
+// independente da causa (ruído de timing, flick genuíno muito rápido, etc.).
+const MIN_DRAG_SAMPLE_MS = 8;
+// Deslocamento total da inércia ≈ MAX_DRAG_VEL / (1 - fator de atrito por frame)
+// — com o atrito antigo (0.93) e o teto antigo (8), um flick rápido coastava
+// ~8/0.07 ≈ 114° sozinho depois de soltar o dedo. Reduzido para ~2.4/0.15 ≈ 16°.
+const MAX_DRAG_VEL = 2.4; // graus por frame de 60fps (TARGET_DT)
 const TARGET_DT = 1000 / 60; // 60fps target for rotation normalization
 const MAX_HUB_ARCS = 40;     // cap on pairwise arcs to avoid O(n²) draw cost
 const RESET_LON = 50;
@@ -1116,8 +1133,9 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
           rotLonRef.current += vl * (dt / TARGET_DT);
           rotLatRef.current += vt * (dt / TARGET_DT);
           rotLatRef.current = Math.max(-85, Math.min(85, rotLatRef.current));
-          // Frame-rate independent friction — 0.93 per frame at 60fps
-          const friction = Math.pow(0.93, dt / TARGET_DT);
+          // Frame-rate independent friction — 0.85 per frame at 60fps (era 0.93:
+          // decaimento lento demais fazia a inércia coastar por muitos frames).
+          const friction = Math.pow(0.85, dt / TARGET_DT);
           dragVelLonRef.current *= friction;
           dragVelLatRef.current *= friction;
         } else if (autoRotateRef.current) {
@@ -1226,16 +1244,16 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       }
       if (!draggingRef.current || !dragLastRef.current) return;
       const now = performance.now();
-      const sens = 0.38 / zoomRef.current;
+      const sens = ROTATE_SENSITIVITY / zoomRef.current;
       const dx = e.clientX - dragLastRef.current.x;
       const dy = e.clientY - dragLastRef.current.y;
       rotLonRef.current += dx * sens;
       rotLatRef.current -= dy * sens;
       rotLatRef.current  = Math.max(-85, Math.min(85, rotLatRef.current));
       // Track velocity per frame for inertia on release
-      const elapsed = Math.max(1, now - prevDragT);
-      dragVelLonRef.current = dx * sens * (TARGET_DT / elapsed);
-      dragVelLatRef.current = -dy * sens * (TARGET_DT / elapsed);
+      const elapsed = Math.max(MIN_DRAG_SAMPLE_MS, now - prevDragT);
+      dragVelLonRef.current = Math.max(-MAX_DRAG_VEL, Math.min(MAX_DRAG_VEL, dx * sens * (TARGET_DT / elapsed)));
+      dragVelLatRef.current = Math.max(-MAX_DRAG_VEL, Math.min(MAX_DRAG_VEL, -dy * sens * (TARGET_DT / elapsed)));
       prevDragT = now;
       dragLastRef.current = { x: e.clientX, y: e.clientY };
     };
@@ -1305,15 +1323,15 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     const onTM = (e: TouchEvent) => {
       if (e.touches.length === 1 && draggingRef.current && dragLastRef.current) {
         const now = performance.now();
-        const sens = 0.38 / zoomRef.current;
+        const sens = ROTATE_SENSITIVITY / zoomRef.current;
         const dx = e.touches[0].clientX - dragLastRef.current.x;
         const dy = e.touches[0].clientY - dragLastRef.current.y;
         rotLonRef.current += dx * sens;
         rotLatRef.current -= dy * sens;
         rotLatRef.current  = Math.max(-85, Math.min(85, rotLatRef.current));
-        const elapsed = Math.max(1, now - prevTouchT);
-        dragVelLonRef.current = dx * sens * (TARGET_DT / elapsed);
-        dragVelLatRef.current = -dy * sens * (TARGET_DT / elapsed);
+        const elapsed = Math.max(MIN_DRAG_SAMPLE_MS, now - prevTouchT);
+        dragVelLonRef.current = Math.max(-MAX_DRAG_VEL, Math.min(MAX_DRAG_VEL, dx * sens * (TARGET_DT / elapsed)));
+        dragVelLatRef.current = Math.max(-MAX_DRAG_VEL, Math.min(MAX_DRAG_VEL, -dy * sens * (TARGET_DT / elapsed)));
         prevTouchT = now;
         dragLastRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       } else if (e.touches.length === 2 && pinchRef.current !== null) {
