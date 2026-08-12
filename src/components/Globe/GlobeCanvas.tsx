@@ -184,6 +184,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
   // em vez de um `createRadialGradient` por ponto/por frame.
   const vitalGlowGradRef  = useRef<CanvasGradient | null>(null);
   const hubPinGlowGradRef = useRef<CanvasGradient | null>(null);
+  // Telas grandes (painéis 4K, ex. quiosque touch de 65") não desenham os anéis
+  // pulsantes dos pontos — o efeito "piscante" fica exagerado/distrativo nessa
+  // escala. Atualizado no resize junto com o buffer do canvas.
+  const skipPulseRingsRef = useRef(false);
   const arcParticleGradsRef = useRef<CanvasGradient[] | null>(null);
   // Buffers reaproveitados entre frames (evita alocar array novo + GC a cada tick).
   const visGroupsBufRef   = useRef<DotGroup[]>([]);
@@ -845,8 +849,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       const bulkAlpha = dim ? 0.1 : 1;
 
       if (visGroups.length > 0) {
-        // Step 3a — 3 anéis de pulso escalonados (sem foco)
-        if (!dim) {
+        // Step 3a — 3 anéis de pulso escalonados (sem foco). Desativado em
+        // telas ≥ 4K (ex. painel touch 65") — o efeito piscante fica exagerado
+        // nessa escala e o custo por ponto some junto.
+        if (!dim && !skipPulseRingsRef.current) {
           for (let ring = 0; ring < 3; ring++) {
             const ph  = ((t * 0.85 + ring * 0.33) % 1);
             const rad = ph * 30 + 5;
@@ -973,12 +979,15 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         hubPinGlowGradRef.current = g;
       }
       for (const { sx, sy, fade } of visHub) {
-        for (let r = 0; r < 3; r++) {
-          const ph = ((t * 1.25 + r * 0.42) % 1);
-          ctx.globalAlpha = (1 - ph) * 0.68 * fade;
-          ctx.strokeStyle = 'rgb(194,65,12)';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.arc(sx, sy, ph * 34 + 3, 0, TAU); ctx.stroke();
+        // Anéis de pulso — mesmo corte em telas ≥ 4K que o tema "vital" (ver skipPulseRingsRef).
+        if (!skipPulseRingsRef.current) {
+          for (let r = 0; r < 3; r++) {
+            const ph = ((t * 1.25 + r * 0.42) % 1);
+            ctx.globalAlpha = (1 - ph) * 0.68 * fade;
+            ctx.strokeStyle = 'rgb(194,65,12)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(sx, sy, ph * 34 + 3, 0, TAU); ctx.stroke();
+          }
         }
         ctx.globalAlpha = fade;
 
@@ -1064,6 +1073,11 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       cv.width  = Math.round(cv.clientWidth  * dpr);
       cv.height = Math.round(cv.clientHeight * dpr);
+
+      const fullDpr = window.devicePixelRatio || 1;
+      const physW = window.screen.width  * fullDpr;
+      const physH = window.screen.height * fullDpr;
+      skipPulseRingsRef.current = Math.max(physW, physH) >= 3840 && Math.min(physW, physH) >= 2160;
     });
     ro.observe(cv);
     return () => ro.disconnect();
