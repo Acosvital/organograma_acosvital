@@ -13,6 +13,11 @@ export class ApiError extends Error {
   }
 }
 
+// Tag única para todas as leituras da API externa — permite invalidar o cache
+// de dados (Next Data Cache) via revalidateTag() assim que uma escrita relevante
+// acontece, em vez de deixar apenas o TTL expirar.
+export const API_CACHE_TAG = 'acosvital-api';
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${BASE}/${path.replace(/^\//, '')}`;
   const method = (init?.method ?? 'GET').toUpperCase();
@@ -25,7 +30,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
     },
-    cache: isGet ? 'default' : 'no-store',
+    // GETs entram no Data Cache do Next por um TTL curto (a estrutura organizacional
+    // muda pouco) e são invalidados sob demanda via revalidateTag(API_CACHE_TAG) nas
+    // rotas de escrita — evita refazer a busca completa da árvore a cada navegação.
+    ...(isGet
+      ? { next: { revalidate: 30, tags: [API_CACHE_TAG] } }
+      : { cache: 'no-store' as RequestCache }),
   });
 
   if (!res.ok) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ApiError, apiGet, apiPost, apiPut, apiDelete, handleApiError } from '@/lib/apiClient';
+import { revalidateTag } from 'next/cache';
+import { ApiError, apiGet, apiPost, apiPut, apiDelete, handleApiError, API_CACHE_TAG } from '@/lib/apiClient';
 import { recomputeSectorHierarchy } from '@/lib/sectorHierarchy';
 import { guard } from '@/lib/routeGuard';
 import { isValidUUID, badRequest, parseJsonBody } from '@/lib/validation';
@@ -124,6 +125,7 @@ export async function PUT(
       } catch { /* best-effort: não bloqueia o save se falhar */ }
     }
 
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json(data);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao atualizar funcionário.');
@@ -168,5 +170,6 @@ export async function DELETE(
     recomputeSectorHierarchy(sectorId, { excludeId: id }).catch(() => {/* best-effort */});
   }
 
+  revalidateTag(API_CACHE_TAG, 'max');
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ApiError, apiGet, apiPost, apiPut, apiDelete, handleApiError } from '@/lib/apiClient';
+import { revalidateTag } from 'next/cache';
+import { ApiError, apiGet, apiPost, apiPut, apiDelete, handleApiError, API_CACHE_TAG } from '@/lib/apiClient';
 import { recomputeSectorHierarchy } from '@/lib/sectorHierarchy';
 import { guard } from '@/lib/routeGuard';
 import { parseJsonBody } from '@/lib/validation';
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest) {
   // skip_org_node foi removido: todos os diretores criam nó próprio no organograma.
   // Mantido apenas para compatibilidade com chamadas legadas (não deve ser enviado).
   if (skipOrgNode) {
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json({ ...funcData }, { status: 201 });
   }
 
@@ -154,5 +156,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  revalidateTag(API_CACHE_TAG, 'max');
   return NextResponse.json({ ...funcData, org_node_id: funcData.id }, { status: 201 });
 }

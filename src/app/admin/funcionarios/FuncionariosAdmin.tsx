@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import Link from 'next/link';
 import Avatar from '@/components/ui/Avatar';
 import type { Funcionario, Cargo, Setor, Unidade } from '@/types/adminCore';
@@ -934,6 +935,14 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
   // Estatísticas
   const totalAtivos = funcionarios.filter(f => validSetorIds.has(f.id_setor)).length;
 
+  const tableRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => tableRef.current,
+    estimateSize: () => 52,
+    overscan: 8,
+  });
+
   return (
     <div className={styles.page}>
 
@@ -1058,7 +1067,7 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
         </div>
 
         {/* Tabela */}
-        <div className={styles.funcTable}>
+        <div className={styles.funcTable} ref={tableRef}>
           {loading ? (
             <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 2 }}>
               {[1,2,3,4,5,6].map(i => (
@@ -1113,7 +1122,9 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
               )}
             </div>
           ) : (
-            filtered.map(f => {
+            <div style={{ position: 'relative', height: rowVirtualizer.getTotalSize() }}>
+            {rowVirtualizer.getVirtualItems().map(vRow => {
+              const f            = filtered[vRow.index];
               const nvl          = f.cargo_nvl ?? 9;
               const color        = levelColors[nvl] ?? '#94a3b8';
               const setorInvalido = f.id_setor && !validSetorIds.has(f.id_setor);
@@ -1122,6 +1133,7 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
                   key={f.id}
                   className={`${styles.tableRow} ${setorInvalido ? styles.tableRowWarn : ''}`}
                   onClick={() => openEdit(f)}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: vRow.size, transform: `translateY(${vRow.start}px)` }}
                 >
                   {/* Coluna: Funcionário (avatar + nome + nível) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -1179,7 +1191,8 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
                   </div>
                 </div>
               );
-            })
+            })}
+            </div>
           )}
         </div>
       </div>

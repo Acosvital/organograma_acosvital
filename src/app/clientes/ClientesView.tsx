@@ -1,9 +1,14 @@
 'use client';
 
 import { useMemo } from 'react';
-import GlobeExplorer from '@/components/Globe/GlobeExplorer';
+import dynamic from 'next/dynamic';
 import type { ApiCliente, ClientPoint } from '@/types/client';
 import { toClientPoint } from '@/types/client';
+
+const GlobeExplorer = dynamic(() => import('@/components/Globe/GlobeExplorer'), {
+  ssr: false,
+  loading: () => null,
+});
 
 function buildPoints(clientes: ApiCliente[]): ClientPoint[] {
   return clientes
