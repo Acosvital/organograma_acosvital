@@ -341,8 +341,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     const ctx = cv.getContext('2d');
     if (!ctx) return;
 
-    // Use logical CSS pixels for all coordinates; scale buffer to physical pixels
-    const dpr = window.devicePixelRatio || 1;
+    // Use logical CSS pixels for all coordinates; scale buffer to physical pixels.
+    // Cap em 2x: acima disso o ganho visual é imperceptível e o custo de preencher
+    // o buffer (crítico em GPUs móveis fracas, ex. painéis touch Android) cresce à toa.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const W   = cv.clientWidth;
     const H   = cv.clientHeight;
     if (!W || !H) return; // canvas not yet laid out
@@ -1059,7 +1061,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     const cv = canvasRef.current;
     if (!cv) return;
     const ro = new ResizeObserver(() => {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       cv.width  = Math.round(cv.clientWidth  * dpr);
       cv.height = Math.round(cv.clientHeight * dpr);
     });
