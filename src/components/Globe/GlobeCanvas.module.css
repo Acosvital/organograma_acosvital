@@ -13,6 +13,10 @@
   height: 100%;
   cursor: grab;
   user-select: none;
+  -webkit-user-select: none;
+  /* Sem isso, o Android intercepta o arraste como gesto de scroll/overscroll
+     (efeito nativo de "esticar/soltar"), que pisca a tela durante o toque. */
+  touch-action: none;
 }
 
 .canvas:active {
