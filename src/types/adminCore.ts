@@ -4,6 +4,8 @@ export interface Cargo {
   nvl_permissao: number;
   descricao: string;
   ativo: boolean;
+  /** Código da unidade/empresa (Unidade.codigo_empresa) a que este cargo pertence. */
+  codigo_empresa: string | null;
   id_origem: string | null;
   created_at: string;
   updated_at: string;
@@ -19,6 +21,8 @@ export interface Setor {
   nivel: number | null;
   sigla: string | null;
   cor_setor: string | null;
+  /** Vincula o setor a uma unidade — compara com Unidade.codigo_empresa. */
+  id_unidades: string | null;
   id_origem: string | null;
   created_at: string;
   updated_at: string;
@@ -26,6 +30,8 @@ export interface Setor {
 
 export interface Unidade {
   id: string;
+  /** Código de empresa retornado pela API externa — usado para vincular Cargos e Setores a esta unidade. */
+  codigo_empresa: string | null;
   cnpj: string;
   razao_social: string;
   nome_fantasia: string;
@@ -43,6 +49,8 @@ export interface Unidade {
   cidade: string;
   estado: string;
   cep: string;
+  /** Posição de exibição na fileira de unidades do organograma geral (menor primeiro). */
+  ordem_exibicao: number | null;
   id_origem: string | null;
   created_at: string;
   updated_at: string;

@@ -30,10 +30,17 @@ function buildTree(setores: Setor[], cmp: (a: Setor, b: Setor) => number): Setor
 
 interface Props {
   initialSetores: Setor[];
+  /** Quando definido, restringe a tela a uma única unidade (Unidade.codigo_empresa). */
+  unidadeCodigo?: string;
+  unidadeNome?: string;
 }
 
-export default function SetoresAdmin({ initialSetores }: Props) {
-  const [setores,  setSetores]  = useState<Setor[]>(initialSetores);
+export default function SetoresAdmin({ initialSetores, unidadeCodigo, unidadeNome }: Props) {
+  const scoped = useCallback(
+    (list: Setor[]) => unidadeCodigo ? list.filter(s => s.id_unidades === unidadeCodigo) : list,
+    [unidadeCodigo],
+  );
+  const [setores,  setSetores]  = useState<Setor[]>(() => scoped(initialSetores));
   const [loading,  setLoading]  = useState(false);
   const [search,    setSearch]    = useState('');
   const [filter,    setFilter]    = useState<'todos' | 'ativos' | 'inativos'>('ativos');
@@ -59,10 +66,10 @@ export default function SetoresAdmin({ initialSetores }: Props) {
         () => fetch('/api/admin/setores').then(r => r.json()),
         CACHE_TTL.ADMIN,
       );
-      setSetores(data);
+      setSetores(scoped(data));
     } catch {}
     setLoading(false);
-  }, []);
+  }, [scoped]);
 
   const parentOptions = useMemo(
     () => setores.filter(s => !s.parent_id && s.ativo && (!editing || s.id !== editing.id)),
@@ -122,6 +129,7 @@ export default function SetoresAdmin({ initialSetores }: Props) {
           parent_id:    form.parent_id    || null,
           codigo_setor: form.codigo_setor || null,
           sigla:        form.sigla        || null,
+          ...(unidadeCodigo && !editing ? { id_unidades: unidadeCodigo } : {}),
         }),
       });
       const json = await res.json();
@@ -149,6 +157,12 @@ export default function SetoresAdmin({ initialSetores }: Props) {
         <div className={styles.breadcrumb}>
           <Link href="/admin">Admin</Link>
           <span className={styles.breadcrumbSep}>›</span>
+          {unidadeCodigo ? (
+            <>
+              <Link href={`/admin/unidade/${encodeURIComponent(unidadeCodigo)}`}>{unidadeNome ?? 'Unidade'}</Link>
+              <span className={styles.breadcrumbSep}>›</span>
+            </>
+          ) : null}
           <span>Setores</span>
         </div>
         <h1 className={styles.headerTitle}>Setores</h1>

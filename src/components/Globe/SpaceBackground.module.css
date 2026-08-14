@@ -1,0 +1,11 @@
+/* Fundo espacial estático (gradiente + estrelas) — mesma receita do GlobeCanvas,
+ * sem a esfera/globo, para reuso em páginas que só precisam do pano de fundo. */
+.canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

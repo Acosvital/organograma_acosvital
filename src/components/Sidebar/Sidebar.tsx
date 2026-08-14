@@ -117,13 +117,12 @@ const NAV = [
   { href: '/historia', label: 'Nossa História', Icon: IconBook     },
 ] as const;
 
+// Funcionários, Cargos e Setores agora são acessados por unidade
+// (Administrar → escolher unidade → Funcionários/Cargos/Setores dessa unidade).
 const ADMIN_SUB = [
-  { href: '/admin/funcionarios',       label: 'Funcionários'     },
-  { href: '/admin/cargos',             label: 'Cargos'           },
-  { href: '/admin/setores',            label: 'Setores'          },
-  { href: '/admin/unidades/cadastro',  label: 'Unidades'         },
-  { href: '/admin/clientes',           label: 'Clientes'         },
-  { href: '/admin/historia',           label: 'Nossa História'   },
+  { href: '/admin/unidades/cadastro',  label: 'Cadastrar unidades' },
+  { href: '/admin/clientes',           label: 'Clientes'           },
+  { href: '/admin/historia',           label: 'Nossa História'     },
 ];
 
 // ── Componente ────────────────────────────────────────────────────────────
