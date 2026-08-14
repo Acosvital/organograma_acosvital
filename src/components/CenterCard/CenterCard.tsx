@@ -50,9 +50,7 @@ export default function CenterCard({ node, color, hideText = false }: Props) {
     const label  = `${getShortName(name1)} & ${getShortName(name2)}`;
 
     return (
-      <g className={styles.group}>
-        <title>{node.name} — {node.role}</title>
-
+      <g className={styles.group} {...({ title: `${node.name} — ${node.role}` } as { title?: string })}>
         <defs>
           <radialGradient id="grad-center" cx="50%" cy="50%" r="50%">
             <stop offset="0%"   stopColor={color} stopOpacity={0.35} />
@@ -122,9 +120,7 @@ export default function CenterCard({ node, color, hideText = false }: Props) {
   const initials = getInitials(node.name);
 
   return (
-    <g className={styles.group}>
-      <title>{node.name} — {node.role}</title>
-
+    <g className={styles.group} {...({ title: `${node.name} — ${node.role}` } as { title?: string })}>
       <defs>
         <radialGradient id="grad-center" cx="50%" cy="50%" r="50%">
           <stop offset="0%"   stopColor={color} stopOpacity={0.35} />

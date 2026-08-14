@@ -42,9 +42,8 @@ export default function SectorCard({ node, color, onClick, hideText = false }: P
       role="button"
       tabIndex={0}
       aria-label={`Abrir setor ${node.name}`}
+      {...({ title: `Setor: ${node.name} — clique para expandir` } as { title?: string })}
     >
-      <title>Setor: {node.name} — clique para expandir</title>
-
       <g className={styles.visual}>
         {/* Outer glow */}
         <circle cx={0} cy={0} r={r + 10} fill={color} fillOpacity={0.08} />

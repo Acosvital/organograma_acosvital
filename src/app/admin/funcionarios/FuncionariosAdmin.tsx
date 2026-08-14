@@ -697,10 +697,16 @@ interface Props {
   initialCargos:       Cargo[];
   initialSetores:      Setor[];
   initialUnidades:     Unidade[];
+  /** Quando definida, restringe a tela a uma única unidade. */
+  unidade?: Unidade;
 }
 
-export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, initialSetores, initialUnidades }: Props) {
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>(initialFuncionarios);
+export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, initialSetores, initialUnidades, unidade }: Props) {
+  const scoped = useCallback(
+    (list: Funcionario[]) => unidade ? list.filter(f => f.id_unidade === unidade.id) : list,
+    [unidade],
+  );
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>(() => scoped(initialFuncionarios));
   const [cargos,       setCargos]       = useState<Cargo[]>(initialCargos);
   const [setores,      setSetores]      = useState<Setor[]>(initialSetores);
   const [unidades,     setUnidades]     = useState<Unidade[]>(initialUnidades);
@@ -733,11 +739,11 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
         () => fetch('/api/admin/funcionarios').then(r => r.json()),
         CACHE_TTL.ADMIN,
       );
-      setFuncionarios(data);
+      setFuncionarios(scoped(data));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [scoped]);
 
   const hasDeps = cargos.length > 0 && setores.length > 0 && unidades.length > 0;
 
@@ -778,7 +784,7 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
 
   function openNew() {
     setEditing(null);
-    setForm({ ...BLANK_FORM });
+    setForm({ ...BLANK_FORM, id_unidade: unidade?.id ?? '' });
     setDrawerOpen(true);
   }
 
@@ -951,6 +957,12 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
         <div className={styles.breadcrumb}>
           <Link href="/admin">Admin</Link>
           <span className={styles.breadcrumbSep}>›</span>
+          {unidade ? (
+            <>
+              <Link href={`/admin/unidade/${encodeURIComponent(unidade.codigo_empresa ?? unidade.id)}`}>{unidade.nome_fantasia}</Link>
+              <span className={styles.breadcrumbSep}>›</span>
+            </>
+          ) : null}
           <span>Funcionários</span>
         </div>
         <h1 className={styles.headerTitle}>Funcionários</h1>

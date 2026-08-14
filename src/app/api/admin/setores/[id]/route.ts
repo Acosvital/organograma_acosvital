@@ -42,6 +42,7 @@ export async function PUT(
   if (b.cor_setor    !== undefined) patch.cor_setor    = b.cor_setor    || null;
   if (b.parent_id    !== undefined) patch.parent_id    = b.parent_id    || null;
   if (b.codigo_setor !== undefined) patch.codigo_setor = b.codigo_setor ? String(b.codigo_setor).trim().toUpperCase() : null;
+  if (b.id_unidades  !== undefined) patch.id_unidades  = b.id_unidades  || null;
 
   if (patch.parent_id === id) {
     return NextResponse.json({ error: 'Um setor não pode ser pai de si mesmo.' }, { status: 422 });
