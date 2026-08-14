@@ -1,0 +1,15 @@
+services:
+  organograma:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      API_ACOSVITAL_URL: ${API_ACOSVITAL_URL}
+      API_ACOSVITAL_KEY: ${API_ACOSVITAL_KEY}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
