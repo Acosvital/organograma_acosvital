@@ -36,6 +36,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   ...(devOrigins.length > 0 ? { allowedDevOrigins: devOrigins } : {}),
   turbopack: {
     root: process.cwd(),

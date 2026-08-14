@@ -1,6 +1,7 @@
 /.next
 /next-env.d.ts
 /node_modules
+/.claude
 
 # Variáveis de ambiente locais (segredos) — nunca versionar
 .env.local
