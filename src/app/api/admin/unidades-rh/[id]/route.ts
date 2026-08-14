@@ -41,6 +41,9 @@ export async function PUT(
   }
   if (b.latitude_y  !== undefined) patch.latitude_y  = b.latitude_y  != null ? Number(b.latitude_y)  : null;
   if (b.longitude_x !== undefined) patch.longitude_x = b.longitude_x != null ? Number(b.longitude_x) : null;
+  if (b.ordem_exibicao !== undefined) {
+    patch.ordem_exibicao = b.ordem_exibicao != null && b.ordem_exibicao !== '' ? Number(b.ordem_exibicao) : null;
+  }
 
   if (patch.tipo_unidade === 'filial' && !patch.matriz_id) {
     return NextResponse.json({ error: 'Filial requer matriz_id.' }, { status: 422 });

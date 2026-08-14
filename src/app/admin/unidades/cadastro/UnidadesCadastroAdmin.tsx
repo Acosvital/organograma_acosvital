@@ -15,6 +15,7 @@ const BLANK = {
   telefone: '', celular: '', homepage: '',
   logradouro: '', numero: '', complemento: '',
   bairro: '', cidade: '', estado: '', cep: '',
+  ordem_exibicao: '',
 };
 type UndForm = typeof BLANK;
 
@@ -127,6 +128,7 @@ export default function UnidadesCadastroAdmin({ initialUnidades }: Props) {
       cidade:        u.cidade,
       estado:        u.estado,
       cep:           u.cep,
+      ordem_exibicao: u.ordem_exibicao != null ? String(u.ordem_exibicao) : '',
     });
   }
 
@@ -343,6 +345,18 @@ export default function UnidadesCadastroAdmin({ initialUnidades }: Props) {
                   placeholder="(11) 99999-0000"
                 />
               </div>
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label}>Ordem de exibição</label>
+              <input
+                type="number"
+                className={styles.input}
+                value={form.ordem_exibicao}
+                onChange={e => setForm(f => ({ ...f, ordem_exibicao: e.target.value }))}
+                placeholder="Ex: 1"
+              />
+              <span className={styles.fieldHint}>Posição desta unidade na fileira do organograma geral (menor aparece primeiro). Deixe em branco para ordenar por nome.</span>
             </div>
 
             {/* Endereço */}

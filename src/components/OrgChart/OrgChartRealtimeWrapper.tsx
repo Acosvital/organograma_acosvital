@@ -14,6 +14,22 @@ const OrgChart = dynamic(() => import('@/components/OrgChart/OrgChart'), {
   loading: () => null,
 });
 
+const emptyStateStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  zIndex: 30,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 6,
+  textAlign: 'center',
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  color: 'rgba(255,255,255,0.55)',
+  pointerEvents: 'none',
+};
+
 const syncDotStyle: React.CSSProperties = {
   position: 'absolute',
   top: 14,
@@ -49,6 +65,7 @@ interface Props {
 export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], levelColors, levelNames }: Props) {
   const [nodes, setNodes]         = useState<OrgNode[]>(initialNodes);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [triedFetch, setTriedFetch] = useState(initialNodes.length > 0);
 
   const overviewNodes = useMemo(
     () => nodes.filter((n) =>
@@ -81,7 +98,7 @@ export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], 
     )
       .then(data => { if (active && Array.isArray(data)) setNodes(data); })
       .catch(() => {})
-      .finally(() => { if (active) setIsSyncing(false); });
+      .finally(() => { if (active) { setIsSyncing(false); setTriedFetch(true); } });
 
     return () => { active = false; };
   }, [unidadeId]);
@@ -96,6 +113,14 @@ export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], 
         levelNames={levelNames}
         unidadeId={unidadeId}
       />
+      {!isSyncing && triedFetch && nodes.length === 0 && (
+        <div style={emptyStateStyle}>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>Organograma indisponível</span>
+          <span style={{ fontSize: 12.5, opacity: 0.85, maxWidth: 320 }}>
+            Não foi possível carregar os dados desta unidade. Verifique a conexão com a API ou tente novamente mais tarde.
+          </span>
+        </div>
+      )}
       {isSyncing && (
         <div style={syncDotStyle}>
           <svg width="8" height="8" viewBox="0 0 8 8">

@@ -18,7 +18,7 @@ import { colorGradientId, radiusClipId } from "@/utils/svgDefs";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import styles from "./OrgChart.module.css";
 import OrgTreeView from "./OrgTreeView";
-import Starfield from "./Starfield";
+import SpaceBackground from "@/components/Globe/SpaceBackground";
 
 // Raios possíveis de node/sector cards (conjunto pequeno e fixo, por nível/BFS-depth)
 // — usado para gerar os <clipPath> compartilhados das fotos (ver <defs> do SVG).
@@ -1595,10 +1595,7 @@ export default function OrgChart({
             ref={canvasTiltRef}
             className={styles.canvasTilt}
           >
-            <Starfield
-              vbRef={vbRef}
-              baseW={activeSectorId ? SECTOR_VB.w : OVERVIEW_VB.w}
-            />
+            <SpaceBackground />
             {/* ── SVG Canvas ──────────────────────────────────────────────── */}
             <svg
               ref={svgRef}

@@ -25,10 +25,17 @@ const BLANK = { nome: '', nvl_permissao: 4, descricao: '', ativo: true };
 
 interface Props {
   initialCargos: Cargo[];
+  /** Quando definido, restringe a tela a uma única unidade (Unidade.codigo_empresa). */
+  unidadeCodigo?: string;
+  unidadeNome?: string;
 }
 
-export default function CargosAdmin({ initialCargos }: Props) {
-  const [cargos,  setCargos]  = useState<Cargo[]>(initialCargos);
+export default function CargosAdmin({ initialCargos, unidadeCodigo, unidadeNome }: Props) {
+  const scoped = useCallback(
+    (list: Cargo[]) => unidadeCodigo ? list.filter(c => c.codigo_empresa === unidadeCodigo) : list,
+    [unidadeCodigo],
+  );
+  const [cargos,  setCargos]  = useState<Cargo[]>(() => scoped(initialCargos));
   const [loading, setLoading] = useState(false);
   const [search,   setSearch]   = useState('');
   const [filter,   setFilter]   = useState<'todos' | 'ativos' | 'inativos'>('ativos');
@@ -54,10 +61,10 @@ export default function CargosAdmin({ initialCargos }: Props) {
         () => fetch('/api/admin/cargos').then(r => r.json()),
         CACHE_TTL.ADMIN,
       );
-      setCargos(data);
+      setCargos(scoped(data));
     } catch {}
     setLoading(false);
-  }, []);
+  }, [scoped]);
 
   const filtered = useMemo(() => {
     let list = cargos;
@@ -99,7 +106,10 @@ export default function CargosAdmin({ initialCargos }: Props) {
       const res    = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          ...(unidadeCodigo && !editing ? { codigo_empresa: unidadeCodigo } : {}),
+        }),
       });
       const json = await res.json();
       if (!res.ok) { showToast(json.error ?? 'Erro ao salvar.', true); return; }
@@ -128,6 +138,12 @@ export default function CargosAdmin({ initialCargos }: Props) {
         <div className={styles.breadcrumb}>
           <Link href="/admin">Admin</Link>
           <span className={styles.breadcrumbSep}>›</span>
+          {unidadeCodigo ? (
+            <>
+              <Link href={`/admin/unidade/${encodeURIComponent(unidadeCodigo)}`}>{unidadeNome ?? 'Unidade'}</Link>
+              <span className={styles.breadcrumbSep}>›</span>
+            </>
+          ) : null}
           <span>Cargos</span>
         </div>
         <h1 className={styles.headerTitle}>Cargos</h1>

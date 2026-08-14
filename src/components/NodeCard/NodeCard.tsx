@@ -41,9 +41,7 @@ function NodeCardInner({ node, color, vbW, hideText = false }: Props) {
   const fontSize = r <= 13 ? 8 : r <= 20 ? 9 : 10;
 
   return (
-    <g transform={`translate(${node.x}, ${node.y})`} className={styles.group}>
-      <title>{node.name} — {node.role}</title>
-
+    <g transform={`translate(${node.x}, ${node.y})`} className={styles.group} {...({ title: `${node.name} — ${node.role}` } as { title?: string })}>
       <g className={styles.visual}>
         {/* Outer glow (neon em camadas) */}
         <circle cx={0} cy={0} r={r + 12} fill={color} fillOpacity={0.06} />

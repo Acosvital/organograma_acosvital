@@ -1,0 +1,135 @@
+.page {
+  position: relative;
+  height: 100%;
+  padding: 32px 0 32px 40px;
+  background: var(--bg-space);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* Fica acima do SpaceBackground (canvas absoluto, z-index 0) */
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: 100%;
+}
+
+.prompt {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-faint);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin: 0;
+  padding-left: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.prompt::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 1.5px;
+  background: var(--text-faint);
+  border-radius: 2px;
+  opacity: 0.5;
+}
+
+.status {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding-left: 4px;
+}
+
+/* ── Palco: diretores fixos + conector + fileira arrastável ────────────── */
+.stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.directorsZone {
+  align-self: flex-start;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+}
+
+/* SVG do conector — cobre o palco inteiro, sem interceptar cliques; o path é
+ * recalculado em JS a partir da posição real dos cards (robusto a qualquer
+ * tamanho de tela, já que o card da diretoria tem geometria própria). */
+.elbowOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  opacity: 0.5;
+}
+
+/* ── Fileira horizontal arrastável ───────────────────────────────────────
+ * Diretores nunca entram aqui — permanecem fora da área de scroll, sempre
+ * visíveis, satisfazendo o requisito de ficarem "no centro" do organograma. */
+.row {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  cursor: grab;
+  /* pan-x: deixa o dedo rolar horizontalmente com inércia nativa e bloqueia
+   * pinch-zoom/scroll vertical acidental durante o arraste. */
+  touch-action: pan-x;
+  /* Evita que arrastar até a borda dispare o gesto de "voltar página" do
+   * navegador (comum em Chrome/Edge com touch e trackpad). */
+  overscroll-behavior-x: contain;
+  user-select: none;
+  -webkit-user-select: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.row::-webkit-scrollbar { display: none; }
+.row:active { cursor: grabbing; }
+
+.item {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.connector {
+  width: 44px;
+  height: 2px;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.unitLink {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  flex-shrink: 0;
+  -webkit-user-drag: none;
+  user-drag: none;
+  /* Remove o flash cinza padrão de toque no Chrome/Safari mobile. */
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.unitLink:hover { transform: scale(1.04); }
+.unitLink * { -webkit-user-drag: none; user-drag: none; pointer-events: none; }
+
+@media (max-width: 640px) {
+  .page { padding: 24px 0 24px 16px; }
+}
