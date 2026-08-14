@@ -13,6 +13,14 @@
   height: 100%;
   cursor: grab;
   user-select: none;
+  -webkit-user-select: none;
+  /* Sem isso, o Android intercepta o arraste como gesto de scroll/overscroll
+     (efeito nativo de "esticar/soltar"), que pisca a tela durante o toque. */
+  touch-action: none;
+  /* Toque prolongado no canvas abre o menu nativo (salvar imagem, copiar,
+     inspecionar) — interrompe o gesto de arraste no meio do toque. */
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
 }
 
 .canvas:active {
