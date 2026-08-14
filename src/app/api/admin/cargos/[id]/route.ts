@@ -24,6 +24,7 @@ export async function PUT(
   if (b.nome        !== undefined) patch.nome          = String(b.nome).trim();
   if (b.descricao   !== undefined) patch.descricao     = String(b.descricao).trim();
   if (b.ativo       !== undefined) patch.ativo         = Boolean(b.ativo);
+  if (b.codigo_empresa !== undefined) patch.codigo_empresa = b.codigo_empresa || null;
   if (b.nvl_permissao !== undefined) {
     const nvl = Number(b.nvl_permissao);
     const nvlErr = validateNvlPermissao(nvl);

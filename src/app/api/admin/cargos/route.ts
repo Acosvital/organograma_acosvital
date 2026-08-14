@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
       nvl_permissao: nvl,
       descricao:     String(b.descricao).trim(),
       ativo:         b.ativo !== false,
+      codigo_empresa: b.codigo_empresa || null,
       id_origem:     b.id_origem ?? null,
     });
     return NextResponse.json(data, { status: 201 });

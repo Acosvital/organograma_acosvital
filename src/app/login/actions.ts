@@ -30,18 +30,28 @@ export async function signIn(
     return { error: `Muitas tentativas de login. Aguarde ${Math.ceil(rl.retryAfterMs / 1000)}s e tente de novo.` };
   }
 
-  const supabase = await createClient();
+  // Qualquer falha aqui (Supabase indisponível, erro de rede, etc.) precisa
+  // virar uma mensagem segura de login — nunca deixar a exceção escapar pro
+  // boundary de erro genérico da aplicação.
+  let signInError: { message: string } | null = null;
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    signInError = error;
+  } catch {
+    return { error: 'Não foi possível entrar. Tente novamente em instantes.' };
+  }
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error) {
-    if (error.message.includes('Invalid login credentials')) {
+  if (signInError) {
+    if (signInError.message.includes('Invalid login credentials')) {
       return { error: 'E-mail ou senha incorretos.' };
     }
-    if (error.message.includes('Email not confirmed')) {
+    if (signInError.message.includes('Email not confirmed')) {
       return { error: 'Confirme seu e-mail antes de entrar.' };
     }
-    return { error: error.message };
+    // Não repassa a mensagem crua do provedor de auth ao usuário — pode
+    // conter detalhes internos. Mensagem genérica e segura.
+    return { error: 'Não foi possível entrar. Tente novamente em instantes.' };
   }
 
   if (lat && lon) {
