@@ -21,8 +21,8 @@ export interface Setor {
   nivel: number | null;
   sigla: string | null;
   cor_setor: string | null;
-  /** Vincula o setor a uma unidade — compara com Unidade.codigo_empresa. */
-  id_unidades: string | null;
+  /** Vincula o setor a uma unidade — compara com Unidade.id (via getUnidadeCodigo). */
+  id_unidade: string | null;
   id_origem: string | null;
   created_at: string;
   updated_at: string;

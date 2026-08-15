@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getUnidadesList } from '@/lib/data/unidades';
+import { getUnidadesList, matchesUnidade } from '@/lib/data/unidades';
 import { IcoUsers, IcoBriefcase, IcoLayers, IcoArrowRight } from '../../_icons';
 import styles from '../../hub.module.css';
 
@@ -21,7 +21,7 @@ export default async function AdminUnidadePage({ params }: Props) {
   const codigoEmpresa = decodeURIComponent(codigo);
 
   const unidades = await getUnidadesList().catch(() => []);
-  const unidade = unidades.find(u => u.codigo_empresa === codigoEmpresa);
+  const unidade = unidades.find(u => matchesUnidade(codigoEmpresa, u));
   if (!unidade) notFound();
 
   const base = `/admin/unidade/${encodeURIComponent(codigoEmpresa)}`;
