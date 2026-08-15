@@ -30,6 +30,7 @@ export default async function AdminUnidadeSetoresPage({ params }: Props) {
 
   return (
     <SetoresAdmin
+      key={unidade.id}
       initialSetores={setores.filter(s => matchesUnidade(s.id_unidade, unidade))}
       unidade={unidade}
     />

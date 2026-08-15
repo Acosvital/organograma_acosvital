@@ -35,6 +35,7 @@ export default async function AdminUnidadeFuncionariosPage({ params }: Props) {
 
   return (
     <FuncionariosAdmin
+      key={unidade.id}
       initialFuncionarios={funcionarios.status === 'fulfilled' ? funcionarios.value as unknown as Funcionario[] : []}
       initialCargos={cargos.status === 'fulfilled' ? (cargos.value as Cargo[]).filter(c => matchesUnidade(c.codigo_empresa, unidade)) : []}
       initialSetores={setores.status === 'fulfilled' ? (setores.value as Setor[]).filter(s => matchesUnidade(s.id_unidade, unidade)) : []}

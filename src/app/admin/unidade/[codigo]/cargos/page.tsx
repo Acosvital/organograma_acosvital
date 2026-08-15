@@ -30,6 +30,7 @@ export default async function AdminUnidadeCargosPage({ params }: Props) {
 
   return (
     <CargosAdmin
+      key={unidade.id}
       initialCargos={cargos.filter(c => matchesUnidade(c.codigo_empresa, unidade))}
       unidade={unidade}
     />
