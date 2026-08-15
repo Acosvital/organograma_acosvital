@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import type { Setor } from '@/types/adminCore';
+import type { Setor, Unidade } from '@/types/adminCore';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../_icons';
 import styles from '../crud.module.css';
 import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
+import { getUnidadeCodigo, matchesUnidade } from '@/lib/data/unidades';
 
 const PALETTE = [
   '#3b82f6','#8b5cf6','#ec4899','#ef4444','#f97316',
@@ -30,15 +31,14 @@ function buildTree(setores: Setor[], cmp: (a: Setor, b: Setor) => number): Setor
 
 interface Props {
   initialSetores: Setor[];
-  /** Quando definido, restringe a tela a uma única unidade (Unidade.codigo_empresa). */
-  unidadeCodigo?: string;
-  unidadeNome?: string;
+  /** Quando definida, restringe a tela a uma única unidade. */
+  unidade?: Unidade;
 }
 
-export default function SetoresAdmin({ initialSetores, unidadeCodigo, unidadeNome }: Props) {
+export default function SetoresAdmin({ initialSetores, unidade }: Props) {
   const scoped = useCallback(
-    (list: Setor[]) => unidadeCodigo ? list.filter(s => s.id_unidades === unidadeCodigo) : list,
-    [unidadeCodigo],
+    (list: Setor[]) => unidade ? list.filter(s => matchesUnidade(s.id_unidade, unidade)) : list,
+    [unidade],
   );
   const [setores,  setSetores]  = useState<Setor[]>(() => scoped(initialSetores));
   const [loading,  setLoading]  = useState(false);
@@ -129,7 +129,7 @@ export default function SetoresAdmin({ initialSetores, unidadeCodigo, unidadeNom
           parent_id:    form.parent_id    || null,
           codigo_setor: form.codigo_setor || null,
           sigla:        form.sigla        || null,
-          ...(unidadeCodigo && !editing ? { id_unidades: unidadeCodigo } : {}),
+          ...(unidade && !editing ? { id_unidade: getUnidadeCodigo(unidade) } : {}),
         }),
       });
       const json = await res.json();
@@ -157,9 +157,9 @@ export default function SetoresAdmin({ initialSetores, unidadeCodigo, unidadeNom
         <div className={styles.breadcrumb}>
           <Link href="/admin">Admin</Link>
           <span className={styles.breadcrumbSep}>›</span>
-          {unidadeCodigo ? (
+          {unidade ? (
             <>
-              <Link href={`/admin/unidade/${encodeURIComponent(unidadeCodigo)}`}>{unidadeNome ?? 'Unidade'}</Link>
+              <Link href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(unidade))}`}>{unidade.nome_fantasia}</Link>
               <span className={styles.breadcrumbSep}>›</span>
             </>
           ) : null}

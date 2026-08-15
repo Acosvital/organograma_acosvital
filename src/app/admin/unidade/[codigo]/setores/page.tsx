@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getSetoresList } from '@/lib/data/adminSetores';
-import { getUnidadesList } from '@/lib/data/unidades';
+import { getUnidadesList, matchesUnidade } from '@/lib/data/unidades';
 import SetoresAdmin from '@/app/admin/setores/SetoresAdmin';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export default async function AdminUnidadeSetoresPage({ params }: Props) {
   const codigoEmpresa = decodeURIComponent(codigo);
 
   const unidades = await getUnidadesList().catch(() => []);
-  const unidade = unidades.find(u => u.codigo_empresa === codigoEmpresa);
+  const unidade = unidades.find(u => matchesUnidade(codigoEmpresa, u));
   if (!unidade) notFound();
 
   let setores: Awaited<ReturnType<typeof getSetoresList>> = [];
@@ -30,9 +30,8 @@ export default async function AdminUnidadeSetoresPage({ params }: Props) {
 
   return (
     <SetoresAdmin
-      initialSetores={setores.filter(s => s.id_unidades === codigoEmpresa)}
-      unidadeCodigo={codigoEmpresa}
-      unidadeNome={unidade.nome_fantasia}
+      initialSetores={setores.filter(s => matchesUnidade(s.id_unidade, unidade))}
+      unidade={unidade}
     />
   );
 }

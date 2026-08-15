@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getCargosList } from '@/lib/data/adminCargos';
-import { getUnidadesList } from '@/lib/data/unidades';
+import { getUnidadesList, matchesUnidade } from '@/lib/data/unidades';
 import CargosAdmin from '@/app/admin/cargos/CargosAdmin';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export default async function AdminUnidadeCargosPage({ params }: Props) {
   const codigoEmpresa = decodeURIComponent(codigo);
 
   const unidades = await getUnidadesList().catch(() => []);
-  const unidade = unidades.find(u => u.codigo_empresa === codigoEmpresa);
+  const unidade = unidades.find(u => matchesUnidade(codigoEmpresa, u));
   if (!unidade) notFound();
 
   let cargos: Awaited<ReturnType<typeof getCargosList>> = [];
@@ -30,9 +30,8 @@ export default async function AdminUnidadeCargosPage({ params }: Props) {
 
   return (
     <CargosAdmin
-      initialCargos={cargos.filter(c => c.codigo_empresa === codigoEmpresa)}
-      unidadeCodigo={codigoEmpresa}
-      unidadeNome={unidade.nome_fantasia}
+      initialCargos={cargos.filter(c => matchesUnidade(c.codigo_empresa, unidade))}
+      unidade={unidade}
     />
   );
 }
