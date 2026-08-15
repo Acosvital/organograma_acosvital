@@ -30,3 +30,14 @@ export function matchesUnidade(value: string | null | undefined, u: Unidade): bo
   if (!value) return false;
   return value === u.id || (!!u.codigo_empresa && value === u.codigo_empresa);
 }
+
+/** Resolve a Unidade correspondente ao segmento /admin/unidade/[codigo] dentro de uma lista já carregada. */
+export function resolveUnidade(unidades: Unidade[], codigo: string): Unidade | undefined {
+  return unidades.find(u => matchesUnidade(codigo, u));
+}
+
+/** Busca e resolve a Unidade correspondente ao segmento /admin/unidade/[codigo] da URL. */
+export async function findUnidadeByCodigo(codigo: string): Promise<Unidade | undefined> {
+  const unidades = await getUnidadesList().catch(() => []);
+  return resolveUnidade(unidades, codigo);
+}

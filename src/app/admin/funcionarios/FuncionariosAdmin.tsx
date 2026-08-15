@@ -9,7 +9,7 @@ import { NVL_LABELS } from '@/types/adminCore';
 import { levelColors } from '@/data/orgData';
 import styles from '../crud.module.css';
 import { cachedFetch, invalidateCache, invalidateCachePrefix, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
-import { getUnidadeCodigo } from '@/lib/data/unidades';
+import UnidadeBreadcrumb from '../UnidadeBreadcrumb';
 
 // ── Máscaras ──────────────────────────────────────────────────────────────────
 const maskCPF   = (v: string) => v.replace(/\D/g,'').slice(0,11).replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{2})$/,'$1-$2');
@@ -958,12 +958,7 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
         <div className={styles.breadcrumb}>
           <Link href="/admin">Admin</Link>
           <span className={styles.breadcrumbSep}>›</span>
-          {unidade ? (
-            <>
-              <Link href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(unidade))}`}>{unidade.nome_fantasia || 'Unidade'}</Link>
-              <span className={styles.breadcrumbSep}>›</span>
-            </>
-          ) : null}
+          <UnidadeBreadcrumb unidade={unidade} />
           <span>Funcionários</span>
         </div>
         <h1 className={styles.headerTitle}>Funcionários</h1>

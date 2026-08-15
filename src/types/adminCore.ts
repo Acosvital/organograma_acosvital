@@ -4,7 +4,7 @@ export interface Cargo {
   nvl_permissao: number;
   descricao: string;
   ativo: boolean;
-  /** Código da unidade/empresa (Unidade.codigo_empresa) a que este cargo pertence. */
+  /** Vincula o cargo a uma unidade — aceita Unidade.id ou Unidade.codigo_empresa (ver matchesUnidade). */
   codigo_empresa: string | null;
   id_origem: string | null;
   created_at: string;
@@ -21,7 +21,7 @@ export interface Setor {
   nivel: number | null;
   sigla: string | null;
   cor_setor: string | null;
-  /** Vincula o setor a uma unidade — compara com Unidade.id (via getUnidadeCodigo). */
+  /** Vincula o setor a uma unidade — aceita Unidade.id ou Unidade.codigo_empresa (ver matchesUnidade). */
   id_unidade: string | null;
   id_origem: string | null;
   created_at: string;
