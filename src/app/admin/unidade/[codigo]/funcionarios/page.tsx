@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getFuncionariosEnriched } from '@/lib/data/adminFuncionarios';
 import { getCargosList } from '@/lib/data/adminCargos';
 import { getSetoresList } from '@/lib/data/adminSetores';
-import { getUnidadesList } from '@/lib/data/unidades';
+import { getUnidadesList, matchesUnidade } from '@/lib/data/unidades';
 import type { Funcionario, Cargo, Setor, Unidade } from '@/types/adminCore';
 import FuncionariosAdmin from '@/app/admin/funcionarios/FuncionariosAdmin';
 
@@ -30,14 +30,14 @@ export default async function AdminUnidadeFuncionariosPage({ params }: Props) {
   ]);
 
   const unidadesList = unidades.status === 'fulfilled' ? unidades.value as Unidade[] : [];
-  const unidade = unidadesList.find(u => u.codigo_empresa === codigoEmpresa);
+  const unidade = unidadesList.find(u => matchesUnidade(codigoEmpresa, u));
   if (!unidade) notFound();
 
   return (
     <FuncionariosAdmin
       initialFuncionarios={funcionarios.status === 'fulfilled' ? funcionarios.value as unknown as Funcionario[] : []}
-      initialCargos={cargos.status === 'fulfilled' ? (cargos.value as Cargo[]).filter(c => c.codigo_empresa === codigoEmpresa) : []}
-      initialSetores={setores.status === 'fulfilled' ? (setores.value as Setor[]).filter(s => s.id_unidades === codigoEmpresa) : []}
+      initialCargos={cargos.status === 'fulfilled' ? (cargos.value as Cargo[]).filter(c => matchesUnidade(c.codigo_empresa, unidade)) : []}
+      initialSetores={setores.status === 'fulfilled' ? (setores.value as Setor[]).filter(s => matchesUnidade(s.id_unidade, unidade)) : []}
       initialUnidades={[unidade]}
       unidade={unidade}
     />

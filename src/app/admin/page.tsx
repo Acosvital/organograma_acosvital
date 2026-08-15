@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getUnidadesList } from '@/lib/data/unidades';
+import { getUnidadesList, getUnidadeCodigo } from '@/lib/data/unidades';
 import { IcoBuilding, IcoGlobe, IcoBook, IcoArrowRight } from './_icons';
 import styles from '../UnidadeSelectorView.module.css';
 import hubStyles from './hub.module.css';
@@ -36,35 +36,21 @@ export default async function AdminPage() {
         )}
 
         <div className={styles.grid}>
-          {unidades.map(u => {
-            const disponivel = !!u.codigo_empresa;
-            const card = (
-              <>
-                <div className={styles.cardIcon}><IcoBuilding size={24} /></div>
-                <p className={styles.cardTitle}>{u.nome_fantasia}</p>
-                <div className={styles.cardMeta}>
-                  <span className={styles.badge}>{u.tipo_unidade === 'matriz' ? 'Matriz' : 'Filial'}</span>
-                  {(u.cidade || u.estado) && (
-                    <span className={styles.cardLocation}>
-                      {[u.cidade, u.estado].filter(Boolean).join(' / ')}
-                    </span>
-                  )}
-                </div>
-                {disponivel
-                  ? <span className={styles.cardArrow}><IcoArrowRight size={16} /></span>
-                  : <span className={styles.cardLocation}>Aguardando sincronização</span>}
-              </>
-            );
-            return disponivel ? (
-              <Link key={u.id} href={`/admin/unidade/${encodeURIComponent(u.codigo_empresa!)}`} className={styles.card}>
-                {card}
-              </Link>
-            ) : (
-              <div key={u.id} className={styles.card} style={{ opacity: 0.55, cursor: 'not-allowed' }}>
-                {card}
+          {unidades.map(u => (
+            <Link key={u.id} href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(u))}`} className={styles.card}>
+              <div className={styles.cardIcon}><IcoBuilding size={24} /></div>
+              <p className={styles.cardTitle}>{u.nome_fantasia}</p>
+              <div className={styles.cardMeta}>
+                <span className={styles.badge}>{u.tipo_unidade === 'matriz' ? 'Matriz' : 'Filial'}</span>
+                {(u.cidade || u.estado) && (
+                  <span className={styles.cardLocation}>
+                    {[u.cidade, u.estado].filter(Boolean).join(' / ')}
+                  </span>
+                )}
               </div>
-            );
-          })}
+              <span className={styles.cardArrow}><IcoArrowRight size={16} /></span>
+            </Link>
+          ))}
         </div>
 
         <div className={hubStyles.grid} style={{ marginTop: 8 }}>

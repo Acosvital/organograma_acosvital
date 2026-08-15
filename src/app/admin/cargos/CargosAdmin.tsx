@@ -2,12 +2,13 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import type { Cargo } from '@/types/adminCore';
+import type { Cargo, Unidade } from '@/types/adminCore';
 import { CARGO_LEVELS, NVL_LABELS } from '@/types/adminCore';
 import { levelColors } from '@/data/orgData';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../_icons';
 import styles from '../crud.module.css';
 import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
+import { getUnidadeCodigo, matchesUnidade } from '@/lib/data/unidades';
 
 function LvlBadge({ nvl }: { nvl: number }) {
   const color = levelColors[nvl] ?? '#94a3b8';
@@ -25,15 +26,14 @@ const BLANK = { nome: '', nvl_permissao: 4, descricao: '', ativo: true };
 
 interface Props {
   initialCargos: Cargo[];
-  /** Quando definido, restringe a tela a uma única unidade (Unidade.codigo_empresa). */
-  unidadeCodigo?: string;
-  unidadeNome?: string;
+  /** Quando definida, restringe a tela a uma única unidade. */
+  unidade?: Unidade;
 }
 
-export default function CargosAdmin({ initialCargos, unidadeCodigo, unidadeNome }: Props) {
+export default function CargosAdmin({ initialCargos, unidade }: Props) {
   const scoped = useCallback(
-    (list: Cargo[]) => unidadeCodigo ? list.filter(c => c.codigo_empresa === unidadeCodigo) : list,
-    [unidadeCodigo],
+    (list: Cargo[]) => unidade ? list.filter(c => matchesUnidade(c.codigo_empresa, unidade)) : list,
+    [unidade],
   );
   const [cargos,  setCargos]  = useState<Cargo[]>(() => scoped(initialCargos));
   const [loading, setLoading] = useState(false);
@@ -108,7 +108,7 @@ export default function CargosAdmin({ initialCargos, unidadeCodigo, unidadeNome 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          ...(unidadeCodigo && !editing ? { codigo_empresa: unidadeCodigo } : {}),
+          ...(unidade && !editing ? { codigo_empresa: getUnidadeCodigo(unidade) } : {}),
         }),
       });
       const json = await res.json();
@@ -138,9 +138,9 @@ export default function CargosAdmin({ initialCargos, unidadeCodigo, unidadeNome 
         <div className={styles.breadcrumb}>
           <Link href="/admin">Admin</Link>
           <span className={styles.breadcrumbSep}>›</span>
-          {unidadeCodigo ? (
+          {unidade ? (
             <>
-              <Link href={`/admin/unidade/${encodeURIComponent(unidadeCodigo)}`}>{unidadeNome ?? 'Unidade'}</Link>
+              <Link href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(unidade))}`}>{unidade.nome_fantasia}</Link>
               <span className={styles.breadcrumbSep}>›</span>
             </>
           ) : null}
