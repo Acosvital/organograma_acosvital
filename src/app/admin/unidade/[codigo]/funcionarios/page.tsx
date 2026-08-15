@@ -15,7 +15,10 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { codigo } = await params;
-  return { title: `Funcionários — ${decodeURIComponent(codigo)} — Açosvital` };
+  const codigoEmpresa = decodeURIComponent(codigo);
+  const unidades = await getUnidadesList().catch(() => []);
+  const unidade = unidades.find(u => matchesUnidade(codigoEmpresa, u));
+  return { title: `Funcionários — ${unidade?.nome_fantasia || codigoEmpresa} — Açosvital` };
 }
 
 export default async function AdminUnidadeFuncionariosPage({ params }: Props) {

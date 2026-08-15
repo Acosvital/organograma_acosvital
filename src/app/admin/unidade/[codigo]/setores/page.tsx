@@ -12,7 +12,10 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { codigo } = await params;
-  return { title: `Setores — ${decodeURIComponent(codigo)} — Açosvital` };
+  const codigoEmpresa = decodeURIComponent(codigo);
+  const unidades = await getUnidadesList().catch(() => []);
+  const unidade = unidades.find(u => matchesUnidade(codigoEmpresa, u));
+  return { title: `Setores — ${unidade?.nome_fantasia || codigoEmpresa} — Açosvital` };
 }
 
 export default async function AdminUnidadeSetoresPage({ params }: Props) {

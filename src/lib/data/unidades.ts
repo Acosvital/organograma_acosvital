@@ -10,11 +10,12 @@ export function getUnidadesList(): Promise<Unidade[]> {
  * Código usado para rotear/vincular uma unidade na área administrativa.
  * `codigo_empresa` só existe após a sincronização com a API externa — até lá,
  * usa o próprio id da unidade para que ela já possa ser administrada.
- * Usa `||` (não `??`) para também cair no fallback quando a API externa
- * devolver string vazia em vez de null.
+ * Checa string vazia explicitamente (em vez de `||`) para não cair no
+ * fallback caso a API externa algum dia devolva um código "falsy" válido.
  */
 export function getUnidadeCodigo(u: Unidade): string {
-  return u.codigo_empresa || u.id;
+  const codigo = u.codigo_empresa;
+  return typeof codigo === 'string' && codigo.trim() !== '' ? codigo : u.id;
 }
 
 /**

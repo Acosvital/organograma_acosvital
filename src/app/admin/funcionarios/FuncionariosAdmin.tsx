@@ -960,7 +960,7 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
           <span className={styles.breadcrumbSep}>›</span>
           {unidade ? (
             <>
-              <Link href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(unidade))}`}>{unidade.nome_fantasia}</Link>
+              <Link href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(unidade))}`}>{unidade.nome_fantasia || 'Unidade'}</Link>
               <span className={styles.breadcrumbSep}>›</span>
             </>
           ) : null}
