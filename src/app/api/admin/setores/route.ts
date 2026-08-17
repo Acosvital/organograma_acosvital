@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       sigla:        b.sigla        ? String(b.sigla).trim().toUpperCase() : null,
       cor_setor:    b.cor_setor    || null,
       codigo_setor: b.codigo_setor ? String(b.codigo_setor).trim().toUpperCase() : null,
-      id_unidade:   b.id_unidade   || null,
+      codigo_empresa: b.codigo_empresa || null,
       id_origem:    b.id_origem    ?? null,
     });
   } catch (e) {

@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { Unidade } from '@/types/adminCore';
-import { getUnidadeCodigo } from '@/lib/data/unidades';
 import styles from './crud.module.css';
 
 interface Props {
@@ -12,7 +11,7 @@ export default function UnidadeBreadcrumb({ unidade }: Props) {
   if (!unidade) return null;
   return (
     <>
-      <Link href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(unidade))}`}>{unidade.nome_fantasia || 'Unidade'}</Link>
+      <Link href={`/admin/unidade/${encodeURIComponent(unidade.id)}`}>{unidade.nome_fantasia || 'Unidade'}</Link>
       <span className={styles.breadcrumbSep}>›</span>
     </>
   );

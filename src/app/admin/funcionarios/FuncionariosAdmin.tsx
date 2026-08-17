@@ -9,6 +9,7 @@ import { NVL_LABELS } from '@/types/adminCore';
 import { levelColors } from '@/data/orgData';
 import styles from '../crud.module.css';
 import { cachedFetch, invalidateCache, invalidateCachePrefix, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
+import { useUnidadeScoped } from '@/lib/hooks/useUnidadeScoped';
 import UnidadeBreadcrumb from '../UnidadeBreadcrumb';
 
 // ── Máscaras ──────────────────────────────────────────────────────────────────
@@ -248,7 +249,7 @@ function NvlPill({ nvl }: { nvl: number }) {
 
 // ── Formulário de funcionário ─────────────────────────────────────────────────
 const BLANK_FORM = {
-  nome_completo: '', id_cargo: '', id_setor: '', id_unidade: '',
+  nome_completo: '', id_cargo: '', id_setor: '', codigo_empresa: '',
   photo_url: '', cpf: '', rg: '', cnpj: '',
   contrato_tipo: '' as '' | 'CLT' | 'PJ' | 'Freelancer',
   jornada_trabalho: '' as '' | 'Integral' | 'Meio Período' | 'Flexível',
@@ -430,8 +431,8 @@ function FuncionarioDrawer({
             <div className={styles.field}>
               <label className={styles.label}>Unidade <span className={styles.required}>*</span></label>
               <SearchableSelect
-                value={form.id_unidade}
-                onChange={id => setForm(f => ({ ...f, id_unidade: id }))}
+                value={form.codigo_empresa}
+                onChange={id => setForm(f => ({ ...f, codigo_empresa: id }))}
                 options={unidades.map(u => ({
                   id: u.id,
                   label: u.nome_fantasia,
@@ -703,10 +704,7 @@ interface Props {
 }
 
 export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, initialSetores, initialUnidades, unidade }: Props) {
-  const scoped = useCallback(
-    (list: Funcionario[]) => unidade ? list.filter(f => f.id_unidade === unidade.id) : list,
-    [unidade],
-  );
+  const scoped = useUnidadeScoped<Funcionario>(unidade, f => f.codigo_empresa);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>(() => scoped(initialFuncionarios));
   const [cargos,       setCargos]       = useState<Cargo[]>(initialCargos);
   const [setores,      setSetores]      = useState<Setor[]>(initialSetores);
@@ -785,7 +783,7 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
 
   function openNew() {
     setEditing(null);
-    setForm({ ...BLANK_FORM, id_unidade: unidade?.id ?? '' });
+    setForm({ ...BLANK_FORM, codigo_empresa: unidade?.id ?? '' });
     setDrawerOpen(true);
   }
 
@@ -807,7 +805,7 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
       nome_completo:    mainNome,
       id_cargo:         f.id_cargo,
       id_setor:         validSetorIds.has(f.id_setor) ? f.id_setor : '',
-      id_unidade:       f.id_unidade,
+      codigo_empresa:   f.codigo_empresa,
       photo_url:        f.photo_url       ?? '',
       cpf:              f.cpf             ?? '',
       rg:               f.rg              ?? '',
@@ -856,7 +854,7 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.nome_completo.trim() || !form.id_cargo || !form.id_unidade) {
+    if (!form.nome_completo.trim() || !form.id_cargo || !form.codigo_empresa) {
       showToast('Preencha: nome, cargo e unidade.', true);
       return;
     }
@@ -894,7 +892,7 @@ export default function FuncionariosAdmin({ initialFuncionarios, initialCargos, 
         const coUrl = form.co_id ? `/api/admin/funcionarios/${form.co_id}` : '/api/admin/funcionarios';
         const coBody = {
           nome_completo: form.co_diretor_nome.trim(),
-          id_cargo: form.id_cargo, id_setor: form.id_setor, id_unidade: form.id_unidade,
+          id_cargo: form.id_cargo, id_setor: form.id_setor, codigo_empresa: form.codigo_empresa,
           // photo_url só é enviado ao CRIAR o co-diretor; em edições (PUT) é omitido
           // para não sobrescrever a foto própria do co-diretor com a do diretor principal.
           ...(form.co_id ? {} : { photo_url: form.photo_url }),

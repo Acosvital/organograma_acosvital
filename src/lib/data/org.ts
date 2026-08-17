@@ -30,7 +30,7 @@ function canonId(id: string): string {
   return id.startsWith('sec-') ? id.slice(4) : id;
 }
 
-interface FuncScope { id: string; id_setor: string; id_unidade: string }
+interface FuncScope { id: string; id_setor: string; codigo_empresa: string }
 interface SetorScope { id: string; parent_id: string | null }
 interface UnitScope { funcUnitMap: Map<string, string>; visibleSectorIds: Set<string> }
 
@@ -57,10 +57,10 @@ function computeUnitScope(unidadeId: string): Promise<UnitScope> {
       fetchAllPages<SetorScope>('/setores', 'setores'),
     ]);
 
-    const funcUnitMap  = new Map(funcionarios.map((f) => [f.id, f.id_unidade]));
+    const funcUnitMap  = new Map(funcionarios.map((f) => [f.id, f.codigo_empresa]));
     const setorParent  = new Map(setores.map((s) => [s.id, s.parent_id]));
     const directMatch  = new Set(
-      funcionarios.filter((f) => f.id_unidade === unidadeId).map((f) => f.id_setor),
+      funcionarios.filter((f) => f.codigo_empresa === unidadeId).map((f) => f.id_setor),
     );
 
     const visibleSectorIds = new Set<string>();

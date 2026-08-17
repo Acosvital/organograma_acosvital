@@ -1,10 +1,10 @@
 import { fetchAllPages } from '@/lib/apiClient';
 
 interface FuncRaw {
-  id:         string;
-  id_cargo:   string;
-  id_setor:   string;
-  id_unidade: string;
+  id:             string;
+  id_cargo:       string;
+  id_setor:       string;
+  codigo_empresa: string;
   [key: string]: unknown;
 }
 interface CargoRaw { id: string; nome: string; nvl_permissao: number; }
@@ -28,6 +28,6 @@ export async function getFuncionariosEnriched(): Promise<Record<string, unknown>
     cargo_nome:   cargoMap.get(f.id_cargo)?.nome              ?? null,
     cargo_nvl:    cargoMap.get(f.id_cargo)?.nvl_permissao     ?? null,
     setor_nome:   setorMap.get(f.id_setor)?.nome              ?? null,
-    unidade_nome: unidadeMap.get(f.id_unidade)?.nome_fantasia ?? null,
+    unidade_nome: unidadeMap.get(f.codigo_empresa)?.nome_fantasia ?? null,
   }));
 }

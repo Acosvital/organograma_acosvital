@@ -8,7 +8,6 @@ import { levelColors } from '@/data/orgData';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../_icons';
 import styles from '../crud.module.css';
 import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
-import { getUnidadeCodigo } from '@/lib/data/unidades';
 import { useUnidadeScoped } from '@/lib/hooks/useUnidadeScoped';
 import UnidadeBreadcrumb from '../UnidadeBreadcrumb';
 
@@ -107,7 +106,7 @@ export default function CargosAdmin({ initialCargos, unidade }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          ...(unidade && !editing ? { codigo_empresa: getUnidadeCodigo(unidade) } : {}),
+          ...(unidade && !editing ? { codigo_empresa: unidade.id } : {}),
         }),
       });
       const json = await res.json();

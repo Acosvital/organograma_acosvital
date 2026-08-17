@@ -35,7 +35,7 @@ export async function PUT(
   if (b.nome_completo !== undefined) patch.nome_completo = String(b.nome_completo).trim();
   if (b.id_cargo      !== undefined) patch.id_cargo      = String(b.id_cargo);
   if (b.id_setor      !== undefined) patch.id_setor      = String(b.id_setor);
-  if (b.id_unidade    !== undefined) patch.id_unidade    = String(b.id_unidade);
+  if (b.codigo_empresa !== undefined) patch.codigo_empresa = String(b.codigo_empresa);
   // parent_node_id é tratado separadamente para o org node — não vai para /funcionarios
   if (b.estado        !== undefined) patch.estado        = b.estado ? String(b.estado).toUpperCase() : null;
   if (b.cpf           !== undefined) patch.cpf           = b.cpf ? String(b.cpf).replace(/\D/g, '') : null;

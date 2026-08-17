@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 interface EnrichedFuncionario {
   id: string;
   nome_completo: string;
-  id_unidade: string;
+  codigo_empresa: string;
   cargo_nvl: number | null;
   photo_url: string | null;
   data_admissao: string | null;
@@ -96,7 +96,7 @@ export default async function Home() {
     node: buildNode(
       unidade.id,
       unidade.nome_fantasia,
-      funcionarios.filter(f => f.id_unidade === unidade.id && f.cargo_nvl === 1),
+      funcionarios.filter(f => f.codigo_empresa === unidade.id && f.cargo_nvl === 1),
     ),
   }));
 

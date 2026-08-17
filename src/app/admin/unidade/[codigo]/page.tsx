@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { findUnidadeByCodigo, getUnidadeCodigo } from '@/lib/data/unidades';
+import { findUnidadeByCodigo } from '@/lib/data/unidades';
 import { IcoUsers, IcoBriefcase, IcoLayers, IcoArrowRight } from '../../_icons';
 import styles from '../../hub.module.css';
 
@@ -25,7 +25,7 @@ export default async function AdminUnidadePage({ params }: Props) {
   const unidade = await findUnidadeByCodigo(unidadeParam);
   if (!unidade) notFound();
 
-  const base = `/admin/unidade/${encodeURIComponent(getUnidadeCodigo(unidade))}`;
+  const base = `/admin/unidade/${encodeURIComponent(unidade.id)}`;
 
   const CARDS = [
     {

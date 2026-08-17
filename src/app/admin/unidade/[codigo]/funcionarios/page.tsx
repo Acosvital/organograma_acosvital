@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getFuncionariosEnriched } from '@/lib/data/adminFuncionarios';
 import { getCargosList } from '@/lib/data/adminCargos';
 import { getSetoresList } from '@/lib/data/adminSetores';
-import { getUnidadesList, resolveUnidade, findUnidadeByCodigo, matchesUnidade } from '@/lib/data/unidades';
+import { getUnidadesList, resolveUnidade, findUnidadeByCodigo } from '@/lib/data/unidades';
 import type { Funcionario, Cargo, Setor, Unidade } from '@/types/adminCore';
 import FuncionariosAdmin from '@/app/admin/funcionarios/FuncionariosAdmin';
 
@@ -39,8 +39,8 @@ export default async function AdminUnidadeFuncionariosPage({ params }: Props) {
     <FuncionariosAdmin
       key={unidade.id}
       initialFuncionarios={funcionarios.status === 'fulfilled' ? funcionarios.value as unknown as Funcionario[] : []}
-      initialCargos={cargos.status === 'fulfilled' ? (cargos.value as Cargo[]).filter(c => matchesUnidade(c.codigo_empresa, unidade)) : []}
-      initialSetores={setores.status === 'fulfilled' ? (setores.value as Setor[]).filter(s => matchesUnidade(s.id_unidade, unidade)) : []}
+      initialCargos={cargos.status === 'fulfilled' ? (cargos.value as Cargo[]).filter(c => c.codigo_empresa === unidade.id) : []}
+      initialSetores={setores.status === 'fulfilled' ? (setores.value as Setor[]).filter(s => s.codigo_empresa === unidade.id) : []}
       initialUnidades={[unidade]}
       unidade={unidade}
     />
