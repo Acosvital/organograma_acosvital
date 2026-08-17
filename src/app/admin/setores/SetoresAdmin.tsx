@@ -6,7 +6,8 @@ import type { Setor, Unidade } from '@/types/adminCore';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../_icons';
 import styles from '../crud.module.css';
 import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
-import { getUnidadeCodigo, matchesUnidade } from '@/lib/data/unidades';
+import { useUnidadeScoped } from '@/lib/hooks/useUnidadeScoped';
+import UnidadeBreadcrumb from '../UnidadeBreadcrumb';
 
 const PALETTE = [
   '#3b82f6','#8b5cf6','#ec4899','#ef4444','#f97316',
@@ -36,10 +37,7 @@ interface Props {
 }
 
 export default function SetoresAdmin({ initialSetores, unidade }: Props) {
-  const scoped = useCallback(
-    (list: Setor[]) => unidade ? list.filter(s => matchesUnidade(s.id_unidade, unidade)) : list,
-    [unidade],
-  );
+  const scoped = useUnidadeScoped<Setor>(unidade, s => s.codigo_empresa);
   const [setores,  setSetores]  = useState<Setor[]>(() => scoped(initialSetores));
   const [loading,  setLoading]  = useState(false);
   const [search,    setSearch]    = useState('');
@@ -129,7 +127,7 @@ export default function SetoresAdmin({ initialSetores, unidade }: Props) {
           parent_id:    form.parent_id    || null,
           codigo_setor: form.codigo_setor || null,
           sigla:        form.sigla        || null,
-          ...(unidade && !editing ? { id_unidade: getUnidadeCodigo(unidade) } : {}),
+          ...(unidade && !editing ? { codigo_empresa: unidade.id } : {}),
         }),
       });
       const json = await res.json();
@@ -157,12 +155,7 @@ export default function SetoresAdmin({ initialSetores, unidade }: Props) {
         <div className={styles.breadcrumb}>
           <Link href="/admin">Admin</Link>
           <span className={styles.breadcrumbSep}>›</span>
-          {unidade ? (
-            <>
-              <Link href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(unidade))}`}>{unidade.nome_fantasia}</Link>
-              <span className={styles.breadcrumbSep}>›</span>
-            </>
-          ) : null}
+          <UnidadeBreadcrumb unidade={unidade} />
           <span>Setores</span>
         </div>
         <h1 className={styles.headerTitle}>Setores</h1>

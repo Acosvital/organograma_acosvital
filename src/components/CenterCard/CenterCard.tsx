@@ -44,7 +44,8 @@ export default function CenterCard({ node, color, hideText = false }: Props) {
   const isPaired  = nameParts.length >= 2;
 
   if (isPaired) {
-    const photo  = node.photoUrl ?? null;
+    const photo1 = node.photoUrl ?? null;
+    const photo2 = node.photoUrl2 ?? null;
     const name1  = nameParts[0]?.trim() ?? node.name;
     const name2  = nameParts[1]?.trim() ?? '';
     const label  = `${getShortName(name1)} & ${getShortName(name2)}`;
@@ -83,22 +84,38 @@ export default function CenterCard({ node, color, hideText = false }: Props) {
         {/* Background */}
         <circle cx={0} cy={0} r={CR} fill="url(#grad-center)" />
 
-        {/* Initials: JO | & | AV — divididos no interior do círculo */}
+        {/* Initials: JO | AV — fallback por metade, coberto pela foto de quem tiver uma */}
         <text x={-CR * 0.30} y={0} textAnchor="middle" dominantBaseline="central"
           fill={color} fontSize={CR * 0.34} fontWeight="700" fontFamily={FONT}>
           {getInitials(name1)}
         </text>
-        <line x1={0} y1={-(CR * 0.45)} x2={0} y2={CR * 0.45}
-          stroke={color} strokeWidth={0.8} strokeOpacity={0.20} />
         <text x={CR * 0.30} y={0} textAnchor="middle" dominantBaseline="central"
           fill={color} fontSize={CR * 0.34} fontWeight="700" fontFamily={FONT}>
           {getInitials(name2)}
         </text>
 
-        {/* Photo (cobre as iniciais) */}
-        {photo && (
-          <image href={photo} x={-CR} y={-CR} width={CR * 2} height={CR * 2}
-            clipPath="url(#clip-center)" preserveAspectRatio="xMidYMid slice" />
+        {/* Fotos — com as 2, cada metade do círculo mostra a foto da própria
+            pessoa; com só 1 (ex.: Diretoria, que não divide), essa foto cobre
+            o círculo inteiro; sem nenhuma, mantém as iniciais visíveis. */}
+        <g clipPath="url(#clip-center)">
+          {photo1 && photo2 ? (
+            <>
+              <image href={photo1} x={-CR} y={-CR} width={CR} height={CR * 2} preserveAspectRatio="xMidYMid slice" />
+              <image href={photo2} x={0} y={-CR} width={CR} height={CR * 2} preserveAspectRatio="xMidYMid slice" />
+            </>
+          ) : (
+            (photo1 ?? photo2) && (
+              <image href={photo1 ?? photo2 ?? undefined} x={-CR} y={-CR} width={CR * 2} height={CR * 2} preserveAspectRatio="xMidYMid slice" />
+            )
+          )}
+        </g>
+
+        {/* Linha divisória — some quando 1 foto só cobre o círculo inteiro
+            (senão cortaria o rosto da pessoa ao meio); aparece com as 2 fotos
+            (marca a divisão) ou sem nenhuma (acompanha as iniciais). */}
+        {!(photo1 && !photo2) && !(photo2 && !photo1) && (
+          <line x1={0} y1={-(CR - 2)} x2={0} y2={CR - 2}
+            stroke={color} strokeWidth={0.8} strokeOpacity={0.35} />
         )}
 
         {!hideText && (

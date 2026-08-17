@@ -8,7 +8,8 @@ import { levelColors } from '@/data/orgData';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../_icons';
 import styles from '../crud.module.css';
 import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
-import { getUnidadeCodigo, matchesUnidade } from '@/lib/data/unidades';
+import { useUnidadeScoped } from '@/lib/hooks/useUnidadeScoped';
+import UnidadeBreadcrumb from '../UnidadeBreadcrumb';
 
 function LvlBadge({ nvl }: { nvl: number }) {
   const color = levelColors[nvl] ?? '#94a3b8';
@@ -31,10 +32,7 @@ interface Props {
 }
 
 export default function CargosAdmin({ initialCargos, unidade }: Props) {
-  const scoped = useCallback(
-    (list: Cargo[]) => unidade ? list.filter(c => matchesUnidade(c.codigo_empresa, unidade)) : list,
-    [unidade],
-  );
+  const scoped = useUnidadeScoped<Cargo>(unidade, c => c.codigo_empresa);
   const [cargos,  setCargos]  = useState<Cargo[]>(() => scoped(initialCargos));
   const [loading, setLoading] = useState(false);
   const [search,   setSearch]   = useState('');
@@ -108,7 +106,7 @@ export default function CargosAdmin({ initialCargos, unidade }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          ...(unidade && !editing ? { codigo_empresa: getUnidadeCodigo(unidade) } : {}),
+          ...(unidade && !editing ? { codigo_empresa: unidade.id } : {}),
         }),
       });
       const json = await res.json();
@@ -138,12 +136,7 @@ export default function CargosAdmin({ initialCargos, unidade }: Props) {
         <div className={styles.breadcrumb}>
           <Link href="/admin">Admin</Link>
           <span className={styles.breadcrumbSep}>›</span>
-          {unidade ? (
-            <>
-              <Link href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(unidade))}`}>{unidade.nome_fantasia}</Link>
-              <span className={styles.breadcrumbSep}>›</span>
-            </>
-          ) : null}
+          <UnidadeBreadcrumb unidade={unidade} />
           <span>Cargos</span>
         </div>
         <h1 className={styles.headerTitle}>Cargos</h1>

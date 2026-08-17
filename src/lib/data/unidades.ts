@@ -6,26 +6,15 @@ export function getUnidadesList(): Promise<Unidade[]> {
   return fetchAllPages<Unidade>('/unidades', 'unidades');
 }
 
-/**
- * Código usado para rotear/vincular uma unidade na área administrativa.
- * `codigo_empresa` só existe após a sincronização com a API externa — até lá,
- * usa o próprio id da unidade para que ela já possa ser administrada.
- * Usa `||` (não `??`) para também cair no fallback quando a API externa
- * devolver string vazia em vez de null.
- */
-export function getUnidadeCodigo(u: Unidade): string {
-  return u.codigo_empresa || u.id;
+/** Resolve a Unidade correspondente ao segmento /admin/unidade/[codigo] dentro de uma lista já carregada.
+ *  O segmento é o próprio Unidade.id — é também o valor gravado em
+ *  Cargo.codigo_empresa / Setor.codigo_empresa / Funcionario.codigo_empresa. */
+export function resolveUnidade(unidades: Unidade[], codigo: string): Unidade | undefined {
+  return unidades.find(u => u.id === codigo);
 }
 
-/**
- * Verifica se um valor de escopo (Cargo.codigo_empresa, Setor.id_unidade, ou o
- * segmento de URL /admin/unidade/[codigo]) pertence a esta unidade. Aceita
- * tanto o código real quanto o id interno — usado como código enquanto a
- * unidade não foi sincronizada (ver getUnidadeCodigo) — para que links e
- * registros criados antes da sincronização não fiquem órfãos quando ela
- * preencher codigo_empresa depois.
- */
-export function matchesUnidade(value: string | null | undefined, u: Unidade): boolean {
-  if (!value) return false;
-  return value === u.id || (!!u.codigo_empresa && value === u.codigo_empresa);
+/** Busca e resolve a Unidade correspondente ao segmento /admin/unidade/[codigo] da URL. */
+export async function findUnidadeByCodigo(codigo: string): Promise<Unidade | undefined> {
+  const unidades = await getUnidadesList().catch(() => []);
+  return resolveUnidade(unidades, codigo);
 }

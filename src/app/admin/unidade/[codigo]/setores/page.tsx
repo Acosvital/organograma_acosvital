@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getSetoresList } from '@/lib/data/adminSetores';
-import { getUnidadesList, matchesUnidade } from '@/lib/data/unidades';
+import { findUnidadeByCodigo } from '@/lib/data/unidades';
 import SetoresAdmin from '@/app/admin/setores/SetoresAdmin';
 
 export const dynamic = 'force-dynamic';
@@ -12,25 +12,25 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { codigo } = await params;
-  return { title: `Setores — ${decodeURIComponent(codigo)} — Açosvital` };
+  const unidadeParam = decodeURIComponent(codigo);
+  const unidade = await findUnidadeByCodigo(unidadeParam);
+  return { title: `Setores — ${unidade?.nome_fantasia || unidadeParam} — Açosvital` };
 }
 
 export default async function AdminUnidadeSetoresPage({ params }: Props) {
   const { codigo } = await params;
-  const codigoEmpresa = decodeURIComponent(codigo);
+  const unidadeParam = decodeURIComponent(codigo);
 
-  const unidades = await getUnidadesList().catch(() => []);
-  const unidade = unidades.find(u => matchesUnidade(codigoEmpresa, u));
+  const [unidade, setores] = await Promise.all([
+    findUnidadeByCodigo(unidadeParam),
+    getSetoresList().catch(() => []),
+  ]);
   if (!unidade) notFound();
-
-  let setores: Awaited<ReturnType<typeof getSetoresList>> = [];
-  try {
-    setores = await getSetoresList();
-  } catch {}
 
   return (
     <SetoresAdmin
-      initialSetores={setores.filter(s => matchesUnidade(s.id_unidade, unidade))}
+      key={unidade.id}
+      initialSetores={setores}
       unidade={unidade}
     />
   );

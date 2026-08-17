@@ -26,6 +26,7 @@ export default async function OrganogramaUnidadePage({
   return (
     <div className={styles.page}>
       <OrgChartRealtimeWrapper
+        key={unidadeId}
         unidadeId={unidadeId}
         initialNodes={initialNodes}
         levelColors={levelColors}

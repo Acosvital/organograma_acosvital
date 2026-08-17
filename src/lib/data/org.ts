@@ -15,13 +15,16 @@ interface VwNode {
   id_ent:              string | null;
 }
 
-// Setores que são apenas containers organizacionais e não devem aparecer como
-// nós no organograma (seus filhos diretos sobem para o pai do setor oculto).
-const HIDDEN_SECTOR_NAMES = new Set(['diretoria', 'gerencia geral']);
-
 function normalizeName(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 }
+
+// Setores que são apenas containers organizacionais e não devem aparecer como
+// nós no organograma (seus filhos diretos sobem para o pai do setor oculto).
+// Comparação via normalizeName() ignora acento/maiúsculas — bate com "Gerência
+// Geral" ou "Gerencia Geral" (o cadastro atual da API externa usa a forma sem
+// acento; escrito aqui com acento por ser a grafia correta em português).
+const HIDDEN_SECTOR_NAMES = new Set(['Diretoria', 'Gerência Geral'].map(normalizeName));
 
 // Setores importados via Supabase usam prefixo 'sec-'; a API externa usa o UUID
 // puro. Normaliza para comparar com os ids crus de /setores (mesmo padrão
@@ -30,7 +33,7 @@ function canonId(id: string): string {
   return id.startsWith('sec-') ? id.slice(4) : id;
 }
 
-interface FuncScope { id: string; id_setor: string; id_unidade: string }
+interface FuncScope { id: string; id_setor: string; codigo_empresa: string }
 interface SetorScope { id: string; parent_id: string | null }
 interface UnitScope { funcUnitMap: Map<string, string>; visibleSectorIds: Set<string> }
 
@@ -57,10 +60,10 @@ function computeUnitScope(unidadeId: string): Promise<UnitScope> {
       fetchAllPages<SetorScope>('/setores', 'setores'),
     ]);
 
-    const funcUnitMap  = new Map(funcionarios.map((f) => [f.id, f.id_unidade]));
+    const funcUnitMap  = new Map(funcionarios.map((f) => [f.id, f.codigo_empresa]));
     const setorParent  = new Map(setores.map((s) => [s.id, s.parent_id]));
     const directMatch  = new Set(
-      funcionarios.filter((f) => f.id_unidade === unidadeId).map((f) => f.id_setor),
+      funcionarios.filter((f) => f.codigo_empresa === unidadeId).map((f) => f.id_setor),
     );
 
     const visibleSectorIds = new Set<string>();

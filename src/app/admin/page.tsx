@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getUnidadesList, getUnidadeCodigo } from '@/lib/data/unidades';
+import { getUnidadesList } from '@/lib/data/unidades';
 import { IcoBuilding, IcoGlobe, IcoBook, IcoArrowRight } from './_icons';
 import styles from '../UnidadeSelectorView.module.css';
 import hubStyles from './hub.module.css';
@@ -37,7 +37,7 @@ export default async function AdminPage() {
 
         <div className={styles.grid}>
           {unidades.map(u => (
-            <Link key={u.id} href={`/admin/unidade/${encodeURIComponent(getUnidadeCodigo(u))}`} className={styles.card}>
+            <Link key={u.id} href={`/admin/unidade/${encodeURIComponent(u.id)}`} className={styles.card}>
               <div className={styles.cardIcon}><IcoBuilding size={24} /></div>
               <p className={styles.cardTitle}>{u.nome_fantasia}</p>
               <div className={styles.cardMeta}>

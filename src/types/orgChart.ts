@@ -6,6 +6,9 @@ export interface OrgNode {
   level: number;
   parentId: string | null;
   photoUrl?: string;
+  /** Foto do segundo co-diretor/gerente quando este nó representa 2 pessoas
+   *  mescladas num único card dividido (ver CenterCard). */
+  photoUrl2?: string;
   isSector?: boolean;
   sectorColor?: string;
   funcionarioId?: string | null;

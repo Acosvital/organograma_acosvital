@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getUnidadesList, matchesUnidade } from '@/lib/data/unidades';
+import { findUnidadeByCodigo } from '@/lib/data/unidades';
 import { IcoUsers, IcoBriefcase, IcoLayers, IcoArrowRight } from '../../_icons';
 import styles from '../../hub.module.css';
 
@@ -13,18 +13,19 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { codigo } = await params;
-  return { title: `${decodeURIComponent(codigo)} — Açosvital` };
+  const unidadeParam = decodeURIComponent(codigo);
+  const unidade = await findUnidadeByCodigo(unidadeParam);
+  return { title: `${unidade?.nome_fantasia || unidadeParam} — Açosvital` };
 }
 
 export default async function AdminUnidadePage({ params }: Props) {
   const { codigo } = await params;
-  const codigoEmpresa = decodeURIComponent(codigo);
+  const unidadeParam = decodeURIComponent(codigo);
 
-  const unidades = await getUnidadesList().catch(() => []);
-  const unidade = unidades.find(u => matchesUnidade(codigoEmpresa, u));
+  const unidade = await findUnidadeByCodigo(unidadeParam);
   if (!unidade) notFound();
 
-  const base = `/admin/unidade/${encodeURIComponent(codigoEmpresa)}`;
+  const base = `/admin/unidade/${encodeURIComponent(unidade.id)}`;
 
   const CARDS = [
     {

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   if (bodyErr) return bodyErr;
 
   const b = body as Record<string, unknown>;
-  const required = ['nome_completo', 'id_cargo', 'id_setor', 'id_unidade'];
+  const required = ['nome_completo', 'id_cargo', 'id_setor', 'codigo_empresa'];
   const missing  = required.filter(k => !b[k]);
   if (missing.length) {
     return NextResponse.json({ error: `Campos obrigatórios: ${missing.join(', ')}.` }, { status: 400 });
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       nome_completo:     String(b.nome_completo).trim(),
       id_cargo:          String(b.id_cargo),
       id_setor:          String(b.id_setor),
-      id_unidade:        String(b.id_unidade),
+      codigo_empresa:    String(b.codigo_empresa),
       photo_url:         b.photo_url         || null,
       cpf:               b.cpf               ? String(b.cpf).replace(/\D/g, '') : null,
       rg:                b.rg                || null,

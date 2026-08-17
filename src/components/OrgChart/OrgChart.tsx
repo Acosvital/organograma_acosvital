@@ -15,6 +15,7 @@ import {
   getSubtree,
 } from "@/utils/radialLayout";
 import { colorGradientId, radiusClipId } from "@/utils/svgDefs";
+import { mergeDirectors } from "@/utils/mergeDirectors";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import styles from "./OrgChart.module.css";
 import OrgTreeView from "./OrgTreeView";
@@ -1609,14 +1610,6 @@ export default function OrgChart({
               style={{ cursor: 'grab' }}
             >
               <defs>
-                <radialGradient id="bg-grad" cx="50%" cy="50%" r="50%">
-                  <stop
-                    offset="0%"
-                    style={{ stopColor: "var(--bg-surface)" }}
-                  />
-                  <stop offset="100%" style={{ stopColor: "var(--bg-deep)" }} />
-                </radialGradient>
-
                 {/* ── Orbital animation defs ── */}
                 <filter
                   id="orb-glow"
@@ -1668,14 +1661,6 @@ export default function OrgChart({
                   </clipPath>
                 ))}
               </defs>
-
-              {/* Background circle */}
-              <circle
-                cx={0}
-                cy={0}
-                r={activeSectorId ? 1600 : 700}
-                fill="url(#bg-grad)"
-              />
 
               {/* Ring guides */}
               {activeSectorId
@@ -1751,21 +1736,9 @@ export default function OrgChart({
                     <CenterCard node={overviewDirectors[0]} color={levelColors[0]} hideText={hideText} />
                   )}
                   {overviewDirectors.length > 1 && (() => {
-                    // Diretor principal (isPrimaryDirector) sempre primeiro: define a
-                    // ordem do nome ("Principal & Co-diretor") e a foto padrão do card.
-                    const sorted = [...overviewDirectors].sort(
-                      (a, b) => (b.isPrimaryDirector ? 1 : 0) - (a.isPrimaryDirector ? 1 : 0),
-                    );
-                    // Achata nomes que já contenham " & " (dados legados) e remove duplicatas
-                    const allNames = [...new Set(
-                      sorted.flatMap(d =>
-                        d.name.split(/\s+&\s+/).map(n => n.trim()).filter(Boolean)
-                      )
-                    )];
                     const merged: typeof overviewDirectors[0] = {
-                      ...sorted[0],
-                      name: allNames.join(' & '),
-                      photoUrl: sorted[0].photoUrl ?? sorted.find(d => d.photoUrl)?.photoUrl,
+                      ...overviewDirectors[0],
+                      ...mergeDirectors(overviewDirectors),
                     };
                     return <CenterCard node={merged} color={levelColors[0]} hideText={hideText} />;
                   })()}
