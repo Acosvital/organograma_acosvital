@@ -1,5 +1,10 @@
 .page {
   position: relative;
+  /* z-index (não só position:relative) é o que cria um contexto de
+     empilhamento próprio — sem ele, o z-index negativo de .bgImage/.bgGradient
+     escapa para um ancestral bem mais externo (fica atrás do <body>, que tem
+     fundo opaco, e desaparece por completo). */
+  z-index: 0;
   height: 100%;
   overflow: hidden;
   background: var(--bg-space);
@@ -7,7 +12,28 @@
   color: var(--text-primary);
 }
 
-/* Fica acima do SpaceBackground (canvas absoluto, z-index -1) */
+.bgImage {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-size: cover;
+  background-position: center;
+}
+
+/* Escurece a foto de forma que o texto (cabeçalho no topo, cards no rodapé)
+ * fique sempre legível, independente do brilho/conteúdo da imagem por trás —
+ * mais escuro nas bordas onde o texto fica, mais claro no meio para a foto
+ * ainda respirar. */
+.bgGradient {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.88) 0%, rgba(2, 6, 23, 0.35) 32%, rgba(2, 6, 23, 0.55) 68%, rgba(2, 6, 23, 0.94) 100%),
+    linear-gradient(90deg, rgba(2, 6, 23, 0.6) 0%, transparent 45%);
+}
+
+/* Fica acima da imagem/gradiente de fundo */
 .content {
   position: relative;
   z-index: 1;
@@ -75,11 +101,11 @@
 }
 .intro p { margin: 0; }
 
-/* ── Palco da linha do tempo ─────────────────────────────────────────── */
+/* ── Palco da linha do tempo — colado no rodapé, não esticado pelo meio ── */
 .timelineStage {
   position: relative;
-  flex: 1;
-  min-height: 260px;
+  flex: 0 0 auto;
+  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
