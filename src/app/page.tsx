@@ -1,9 +1,11 @@
+import { redirect } from 'next/navigation';
 import { requireAuth } from '@/lib/apiAuth';
 import { getUnidadesList } from '@/lib/data/unidades';
 import { getFuncionariosEnriched } from '@/lib/data/adminFuncionarios';
 import type { Unidade } from '@/types/adminCore';
 import type { PositionedNode } from '@/types/orgChart';
 import OrganogramaOverview, { type UnidadeOverviewEntry } from './OrganogramaOverview';
+import KioskAutoRefresh from '@/components/KioskAutoRefresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,9 +41,17 @@ function buildNode(id: string, role: string, pessoas: EnrichedFuncionario[]): Po
 export default async function Home() {
   const auth = await requireAuth('viewer');
 
+  // Sessão expirada/ausente: manter a tela renderizando "vazia" faz um quiosque
+  // desassistido parecer travado com dados incorretos. Manda pro login (e volta
+  // pra cá depois) em vez de mascarar o problema. Outras falhas de auth (403/503)
+  // não têm solução em re-logar — tratadas abaixo como erro de carregamento normal.
+  if (auth.err?.status === 401) {
+    redirect('/login?next=%2F');
+  }
+
   let unidades: Unidade[] = [];
   let funcionarios: EnrichedFuncionario[] = [];
-  let error = false;
+  let error = !!auth.err;
 
   if (!auth.err) {
     try {
@@ -72,10 +82,13 @@ export default async function Home() {
   }));
 
   return (
-    <OrganogramaOverview
-      directorsNode={directorsNode}
-      unidadesComGerentes={unidadesComGerentes}
-      error={error}
-    />
+    <>
+      <KioskAutoRefresh hasError={error} />
+      <OrganogramaOverview
+        directorsNode={directorsNode}
+        unidadesComGerentes={unidadesComGerentes}
+        error={error}
+      />
+    </>
   );
 }
