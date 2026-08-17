@@ -4,11 +4,6 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { HistoriaContent, HistoriaTimelineItem } from '@/types/historia';
 import styles from './HistoriaView.module.css';
 
-/** Foto de fundo — genérica (industrial/aço) até haver uma imagem própria da
- *  empresa configurável; o gradiente por cima garante o texto legível
- *  independente do brilho/conteúdo da foto. */
-const BG_IMAGE_URL = 'https://images.unsplash.com/photo-1587293852726-70cdb56c2866?w=1920&q=80';
-
 interface Props {
   historia: HistoriaContent | null;
   error?: boolean;
@@ -104,7 +99,9 @@ export default function HistoriaView({ historia, error = false }: Props) {
 
   return (
     <div className={styles.page}>
-      <div className={styles.bgImage} style={{ backgroundImage: `url(${BG_IMAGE_URL})` }} />
+      {historia?.backgroundImageUrl && (
+        <div className={styles.bgImage} style={{ backgroundImage: `url(${historia.backgroundImageUrl})` }} />
+      )}
       <div className={styles.bgGradient} />
 
       <div className={styles.content}>

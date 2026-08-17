@@ -4,12 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { IcoPlus, IcoTrash } from '../_icons';
 import { toVideoEmbedUrl } from '@/lib/videoEmbed';
-import type { HistoriaContent, HistoriaImagem, HistoriaTimelineItem } from '@/types/historia';
+import type { HistoriaContent, HistoriaTimelineItem } from '@/types/historia';
 import styles from '../crud.module.css';
-
-function emptyImagem(): HistoriaImagem {
-  return { id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url: '', legenda: '' };
-}
 
 function emptyTimelineItem(): HistoriaTimelineItem {
   return { id: `tl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ano: new Date().getFullYear(), titulo: '', descricao: '', imagemUrl: null };
@@ -20,11 +16,11 @@ interface Props {
 }
 
 export default function HistoriaAdmin({ initialHistoria }: Props) {
-  const [titulo,   setTitulo]   = useState(initialHistoria?.titulo ?? '');
-  const [texto,    setTexto]    = useState(initialHistoria?.texto ?? '');
-  const [videoUrl, setVideoUrl] = useState(initialHistoria?.videoUrl ?? '');
-  const [imagens,  setImagens]  = useState<HistoriaImagem[]>(initialHistoria?.imagens ?? []);
-  const [timeline, setTimeline] = useState<HistoriaTimelineItem[]>(initialHistoria?.timeline ?? []);
+  const [titulo,             setTitulo]             = useState(initialHistoria?.titulo ?? '');
+  const [texto,              setTexto]              = useState(initialHistoria?.texto ?? '');
+  const [videoUrl,           setVideoUrl]           = useState(initialHistoria?.videoUrl ?? '');
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState(initialHistoria?.backgroundImageUrl ?? '');
+  const [timeline,           setTimeline]           = useState<HistoriaTimelineItem[]>(initialHistoria?.timeline ?? []);
   const [saving,   setSaving]   = useState(false);
   const [toast,    setToast]    = useState<{ msg: string; err: boolean } | null>(
     initialHistoria ? null : { msg: 'Não foi possível carregar o conteúdo.', err: true },
@@ -35,14 +31,6 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
-
-  function updateImagem(id: string, patch: Partial<HistoriaImagem>) {
-    setImagens(imgs => imgs.map(img => img.id === id ? { ...img, ...patch } : img));
-  }
-
-  function removeImagem(id: string) {
-    setImagens(imgs => imgs.filter(img => img.id !== id));
-  }
 
   function updateTimelineItem(id: string, patch: Partial<HistoriaTimelineItem>) {
     setTimeline(items => items.map(item => item.id === id ? { ...item, ...patch } : item));
@@ -78,7 +66,7 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
           titulo,
           texto,
           videoUrl,
-          imagens:  imagens.filter(img => img.url.trim()),
+          backgroundImageUrl: backgroundImageUrl.trim(),
           timeline: timeline.map(item => ({ ...item, titulo: item.titulo.trim() })),
         }),
       });
@@ -87,7 +75,7 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
         setToast({ msg: json.error ?? 'Erro ao salvar.', err: true });
         return;
       }
-      setImagens(json.imagens ?? []);
+      setBackgroundImageUrl(json.backgroundImageUrl ?? '');
       setTimeline(json.timeline ?? []);
       setToast({ msg: 'Conteúdo salvo com sucesso.', err: false });
     } catch {
@@ -149,53 +137,24 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
             </div>
 
             <div className={styles.field}>
-              <label className={styles.label}>Imagens</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {imagens.map(img => (
-                  <div key={img.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    {img.url && (
-                      <img
-                        src={img.url}
-                        alt=""
-                        style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-subtle)' }}
-                        onError={e => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
-                      />
-                    )}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-                      <input
-                        className={styles.input}
-                        value={img.url}
-                        onChange={e => updateImagem(img.id, { url: e.target.value })}
-                        placeholder="https://…"
-                      />
-                      <input
-                        className={styles.input}
-                        value={img.legenda}
-                        onChange={e => updateImagem(img.id, { legenda: e.target.value })}
-                        placeholder="Legenda (opcional)"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.btnSecondary}
-                      onClick={() => removeImagem(img.id)}
-                      title="Remover imagem"
-                      style={{ flexShrink: 0 }}
-                    >
-                      <IcoTrash />
-                    </button>
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  className={styles.btnSecondary}
-                  style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6 }}
-                  onClick={() => setImagens(imgs => [...imgs, emptyImagem()])}
-                >
-                  <IcoPlus /> Adicionar imagem
-                </button>
+              <label className={styles.label}>Imagem de fundo</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                {backgroundImageUrl && (
+                  <img
+                    src={backgroundImageUrl}
+                    alt=""
+                    style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-subtle)' }}
+                    onError={e => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
+                  />
+                )}
+                <input
+                  className={styles.input}
+                  value={backgroundImageUrl}
+                  onChange={e => setBackgroundImageUrl(e.target.value)}
+                  placeholder="https://…"
+                />
               </div>
+              <span className={styles.fieldHint}>Aparece por trás do texto na tela pública, com um gradiente escuro por cima para manter a leitura. Deixe em branco para usar só o fundo padrão.</span>
             </div>
 
             <div className={styles.field}>
