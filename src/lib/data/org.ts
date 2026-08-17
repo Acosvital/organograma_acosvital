@@ -15,13 +15,16 @@ interface VwNode {
   id_ent:              string | null;
 }
 
-// Setores que são apenas containers organizacionais e não devem aparecer como
-// nós no organograma (seus filhos diretos sobem para o pai do setor oculto).
-const HIDDEN_SECTOR_NAMES = new Set(['diretoria', 'gerencia geral']);
-
 function normalizeName(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 }
+
+// Setores que são apenas containers organizacionais e não devem aparecer como
+// nós no organograma (seus filhos diretos sobem para o pai do setor oculto).
+// Comparação via normalizeName() ignora acento/maiúsculas — bate com "Gerência
+// Geral" ou "Gerencia Geral" (o cadastro atual da API externa usa a forma sem
+// acento; escrito aqui com acento por ser a grafia correta em português).
+const HIDDEN_SECTOR_NAMES = new Set(['Diretoria', 'Gerência Geral'].map(normalizeName));
 
 // Setores importados via Supabase usam prefixo 'sec-'; a API externa usa o UUID
 // puro. Normaliza para comparar com os ids crus de /setores (mesmo padrão
