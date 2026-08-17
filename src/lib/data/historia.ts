@@ -1,5 +1,5 @@
 import { apiGet } from '@/lib/apiClient';
-import type { HistoriaContent, HistoriaImagem, HistoriaTimelineItem } from '@/types/historia';
+import type { HistoriaContent, HistoriaTimelineItem } from '@/types/historia';
 
 interface RawImagem { id: string; url: string; legenda: string | null }
 interface RawTimelineItem { id: string; ano: number; titulo: string; descricao: string | null; imagem_url: string | null }
@@ -20,15 +20,11 @@ export function unwrap(raw: unknown): RawHistoria {
 
 export function toHistoriaContent(raw: RawHistoria): HistoriaContent {
   return {
-    titulo:    raw.titulo,
-    texto:     raw.texto,
-    videoUrl:  raw.video_url,
-    updatedAt: raw.updated_at,
-    imagens: (raw.imagens ?? []).map((img): HistoriaImagem => ({
-      id:      img.id,
-      url:     img.url,
-      legenda: img.legenda ?? '',
-    })),
+    titulo:              raw.titulo,
+    texto:               raw.texto,
+    videoUrl:            raw.video_url,
+    updatedAt:           raw.updated_at,
+    backgroundImageUrl:  raw.imagens?.[0]?.url ?? null,
     timeline: (raw.timeline ?? []).map((item): HistoriaTimelineItem => ({
       id:        item.id,
       ano:       item.ano,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiPut, handleApiError } from '@/lib/apiClient';
+import { revalidateTag } from 'next/cache';
+import { apiPut, handleApiError, API_CACHE_TAG } from '@/lib/apiClient';
 import { toVideoEmbedUrl } from '@/lib/videoEmbed';
 import { guard } from '@/lib/routeGuard';
 import { parseJsonBody } from '@/lib/validation';
@@ -38,14 +39,10 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Link de vídeo inválido. Use um link do YouTube ou Vimeo.' }, { status: 400 });
   }
 
-  const imagensRaw = Array.isArray(body.imagens) ? body.imagens : [];
-  const imagens = imagensRaw
-    .filter((img): img is Record<string, unknown> => !!img && typeof img === 'object')
-    .map(img => ({
-      url:     typeof img.url === 'string' ? img.url.trim() : '',
-      legenda: typeof img.legenda === 'string' ? img.legenda.trim() : '',
-    }))
-    .filter(img => img.url);
+  // A API externa não tem um campo dedicado pra foto de fundo — reaproveita a
+  // 1ª posição do array `imagens` (galeria antiga, removida da tela pública).
+  const rawBgUrl = typeof body.backgroundImageUrl === 'string' ? body.backgroundImageUrl.trim() : '';
+  const imagens = rawBgUrl ? [{ url: rawBgUrl, legenda: '' }] : [];
 
   const timelineRaw = Array.isArray(body.timeline) ? body.timeline : [];
   const timeline: { ano: number; titulo: string; descricao: string; imagem_url: string | null }[] = [];
@@ -71,6 +68,7 @@ export async function PUT(request: NextRequest) {
       imagens,
       timeline,
     });
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json(toHistoriaContent(unwrap(raw)));
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Não foi possível salvar as alterações.');
