@@ -3,7 +3,11 @@
 .canvas {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  /* Negativo (não 0): garante que fique sempre atrás do conteúdo em fluxo
+     normal (ex.: o <svg> do organograma, que não é position:relative/absolute)
+     — um z-index 0 num elemento posicionado pinta por cima de irmãos static
+     independente da ordem no DOM, cobrindo o conteúdo. */
+  z-index: -1;
   display: block;
   width: 100%;
   height: 100%;
