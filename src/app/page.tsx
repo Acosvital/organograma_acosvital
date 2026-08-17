@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { requireAuth } from '@/lib/apiAuth';
 import { getUnidadesList } from '@/lib/data/unidades';
 import { getFuncionariosEnriched } from '@/lib/data/adminFuncionarios';
+import { getOrgNodes } from '@/lib/data/org';
+import { mergeDirectors } from '@/utils/mergeDirectors';
 import type { Unidade } from '@/types/adminCore';
 import type { PositionedNode } from '@/types/orgChart';
 import OrganogramaOverview, { type UnidadeOverviewEntry } from './OrganogramaOverview';
@@ -18,8 +20,8 @@ interface EnrichedFuncionario {
   data_admissao: string | null;
 }
 
-/** Combina até 2 pessoas (ex: co-diretores ou os 2 gerentes de uma unidade) num único
- *  nó — quando há 2, o nome fica "A & B" e o CenterCard desenha o círculo dividido. */
+/** Combina os 2 gerentes de uma unidade num único nó — o nome fica "A & B" e
+ *  o CenterCard desenha o círculo dividido, cada um com sua própria foto. */
 function buildNode(id: string, role: string, pessoas: EnrichedFuncionario[]): PositionedNode | null {
   if (pessoas.length === 0) return null;
   const ordenadas = [...pessoas].sort((a, b) =>
@@ -30,9 +32,26 @@ function buildNode(id: string, role: string, pessoas: EnrichedFuncionario[]): Po
   return {
     id,
     role,
-    name:     escolhidas.map(p => p.nome_completo).join(' & '),
-    photoUrl: escolhidas.find(p => p.photo_url)?.photo_url ?? undefined,
+    name:      escolhidas.map(p => p.nome_completo).join(' & '),
+    photoUrl:  escolhidas[0]?.photo_url ?? undefined,
+    photoUrl2: escolhidas[1]?.photo_url ?? undefined,
     level:    0,
+    parentId: null,
+    x: 0, y: 0, angle: 0, radius: 0,
+  };
+}
+
+/** Diretoria é papel global (vem de /vw_organograma_nodes, não de /funcionarios)
+ *  para reusar a mesma correção de co-diretor/foto do organograma por unidade
+ *  (ver isPrimaryDirector em org.ts) — evita escolher a foto de quem só tem
+ *  admissão mais antiga quando o diretor principal tem a foto correta. */
+function buildDirectorsNode(directors: { id: string; role: string; name: string; photoUrl?: string; isPrimaryDirector?: boolean }[]): PositionedNode | null {
+  if (directors.length === 0) return null;
+  return {
+    id: 'directors',
+    role: 'Diretoria',
+    ...mergeDirectors(directors),
+    level: 0,
     parentId: null,
     x: 0, y: 0, angle: 0, radius: 0,
   };
@@ -51,19 +70,19 @@ export default async function Home() {
 
   let unidades: Unidade[] = [];
   let funcionarios: EnrichedFuncionario[] = [];
+  let directorsNode: PositionedNode | null = null;
   let error = !!auth.err;
 
   if (!auth.err) {
     try {
-      const [u, f] = await Promise.all([getUnidadesList(), getFuncionariosEnriched()]);
+      const [u, f, orgNodes] = await Promise.all([getUnidadesList(), getFuncionariosEnriched(), getOrgNodes()]);
       unidades = u;
       funcionarios = f as unknown as EnrichedFuncionario[];
+      directorsNode = buildDirectorsNode(orgNodes.filter(n => !n.isSector && n.level === 0));
     } catch {
       error = true;
     }
   }
-
-  const directorsNode = buildNode('directors', 'Diretoria', funcionarios.filter(f => f.cargo_nvl === 0));
 
   const unidadesOrdenadas = [...unidades].sort((a, b) => {
     if (a.ordem_exibicao != null && b.ordem_exibicao != null) return a.ordem_exibicao - b.ordem_exibicao;
