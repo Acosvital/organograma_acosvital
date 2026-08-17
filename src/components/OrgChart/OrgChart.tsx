@@ -1609,14 +1609,6 @@ export default function OrgChart({
               style={{ cursor: 'grab' }}
             >
               <defs>
-                <radialGradient id="bg-grad" cx="50%" cy="50%" r="50%">
-                  <stop
-                    offset="0%"
-                    style={{ stopColor: "var(--bg-surface)" }}
-                  />
-                  <stop offset="100%" style={{ stopColor: "var(--bg-deep)" }} />
-                </radialGradient>
-
                 {/* ── Orbital animation defs ── */}
                 <filter
                   id="orb-glow"
@@ -1668,14 +1660,6 @@ export default function OrgChart({
                   </clipPath>
                 ))}
               </defs>
-
-              {/* Background circle */}
-              <circle
-                cx={0}
-                cy={0}
-                r={activeSectorId ? 1600 : 700}
-                fill="url(#bg-grad)"
-              />
 
               {/* Ring guides */}
               {activeSectorId
