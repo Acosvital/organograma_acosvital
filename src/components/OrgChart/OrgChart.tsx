@@ -49,9 +49,9 @@ interface ViewBox {
 
 const OVERVIEW_VB: ViewBox = { x: -540, y: -540, w: 1080, h: 1080 };
 const SECTOR_VB: ViewBox = { x: -1100, y: -1100, w: 2200, h: 2200 };
-const MIN_W_OV = 150;
+const MIN_W_OV = 60;
 const MAX_W_OV = 1500;
-const MIN_W_SC = 200;
+const MIN_W_SC = 80;
 const MAX_W_SC = 6000; // ring 8 radius=1590 → full diameter ~3400; allow zooming out further
 const CULL_MARGIN = 120;
 const SPINE_R = 430; // Management ring sits on the sector ring (r=430)
