@@ -64,6 +64,13 @@ export function validateNvlPermissao(nvl: number): string | null {
  * Compara o header Origin (ou Referer como fallback) contra o host da própria requisição.
  * Requisições sem nenhum dos dois headers (ex.: chamadas server-to-server internas) passam —
  * o risco real de CSRF vem de navegadores, que sempre enviam Origin em requisições cross-site.
+ *
+ * Atrás de um proxy reverso (nginx, Caddy, load balancer — o app roda em Docker,
+ * ver Dockerfile/docker-compose.yml), `request.url` pode refletir o host interno
+ * que o Next recebeu, não o domínio público que o navegador realmente visitou —
+ * causando "Origem não permitida" em requisições legítimas. `x-forwarded-host` é
+ * o que o proxy preenche com o domínio público original; mesma lógica de
+ * confiança já usada para IP em rateLimit.ts (getClientIp).
  */
 export function verifySameOrigin(request: Request): boolean {
   const origin = request.headers.get('origin') ?? request.headers.get('referer');
@@ -71,7 +78,8 @@ export function verifySameOrigin(request: Request): boolean {
 
   try {
     const originHost = new URL(origin).host;
-    const requestHost = new URL(request.url).host;
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    const requestHost = forwardedHost ? forwardedHost.split(',')[0].trim() : new URL(request.url).host;
     return originHost === requestHost;
   } catch {
     return false;
