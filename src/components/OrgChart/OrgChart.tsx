@@ -113,7 +113,6 @@ export default function OrgChart({
   const panVelocity = useRef({ vx: 0, vy: 0 }); // vb units / ms
   const lastPanEvent = useRef<{ x: number; y: number; t: number } | null>(null);
   const lastTap = useRef<{ x: number; y: number; t: number } | null>(null);
-  const lastInteraction = useRef<number>(Date.now());
   const animFrameRef = useRef<number | null>(null);
   const pressedSectorIdRef = useRef<string | null>(null);
   const pendingPointerMoveRef = useRef<number | null>(null);
@@ -524,25 +523,9 @@ export default function OrgChart({
     return () => ro.disconnect();
   }, []);
 
-  // ── Auto-reset: volta ao panorama após 3 min sem interação ────────────
-  useEffect(() => {
-    const INACTIVITY_MS = 3 * 60 * 1_000;
-    const id = setInterval(() => {
-      if (Date.now() - lastInteraction.current > INACTIVITY_MS) {
-        setSectorStack([]);
-      }
-    }, 30_000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Qualquer toque/clique na página renova o timer de inatividade
-  useEffect(() => {
-    const refresh = () => {
-      lastInteraction.current = Date.now();
-    };
-    window.addEventListener("pointerdown", refresh);
-    return () => window.removeEventListener("pointerdown", refresh);
-  }, []);
+  // Auto-reset por inatividade agora é global (ver IdleHomeRedirect, montado
+  // no layout raiz) — volta pra "/" depois de 3 min sem interação em qualquer
+  // tela pública, não só fecha o setor aberto aqui.
 
   // ── Wheel zoom ────────────────────────────────────────────────────────
   const handleWheel = useCallback(
