@@ -18,18 +18,19 @@
   z-index: -2;
   background-size: cover;
   background-position: center;
+  opacity: 0.5;
 }
 
 /* Escurece a foto de forma que o texto (cabeçalho no topo, cards no rodapé)
  * fique sempre legível, independente do brilho/conteúdo da imagem por trás —
  * mais escuro nas bordas onde o texto fica, mais claro no meio para a foto
- * ainda respirar. */
+ * ainda respirar (bem apagada, só uma sugestão de imagem). */
 .bgGradient {
   position: absolute;
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(180deg, rgba(2, 6, 23, 0.88) 0%, rgba(2, 6, 23, 0.35) 32%, rgba(2, 6, 23, 0.55) 68%, rgba(2, 6, 23, 0.94) 100%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.92) 0%, rgba(2, 6, 23, 0.62) 32%, rgba(2, 6, 23, 0.75) 68%, rgba(2, 6, 23, 0.97) 100%),
     linear-gradient(90deg, rgba(2, 6, 23, 0.6) 0%, transparent 45%);
 }
 
