@@ -96,7 +96,7 @@ export default function HistoriaView({ historia, error = false }: Props) {
     el.scrollBy({ left: dir * Math.min(340, el.clientWidth * 0.7), behavior: 'smooth' });
   }, []);
 
-  const hasContent = paragraphs.length > 0 || (historia?.imagens.length ?? 0) > 0 || timeline.length > 0;
+  const hasContent = paragraphs.length > 0 || timeline.length > 0;
 
   return (
     <div className={styles.page}>
@@ -191,19 +191,6 @@ export default function HistoriaView({ historia, error = false }: Props) {
                     <div className={styles.progressFill} style={{ width: `${Math.round(progress * 100)}%` }} />
                   </div>
                   <p className={styles.dragHint}>Arraste para explorar a linha do tempo</p>
-                </div>
-              )}
-
-              {historia.imagens.length > 0 && (
-                <div className={styles.extras}>
-                  <div className={styles.gallery}>
-                    {historia.imagens.map(img => (
-                      <figure key={img.id} className={styles.galleryItem}>
-                        <img src={img.url} alt={img.legenda || historia.titulo} loading="lazy" />
-                        {img.legenda && <figcaption>{img.legenda}</figcaption>}
-                      </figure>
-                    ))}
-                  </div>
                 </div>
               )}
             </>

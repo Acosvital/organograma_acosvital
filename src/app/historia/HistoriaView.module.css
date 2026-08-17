@@ -292,47 +292,11 @@
   flex-shrink: 0;
 }
 
-/* ── Vídeo + galeria ─────────────────────────────────────────────────── */
-.extras {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  max-width: 860px;
-  padding-right: 40px;
-  flex-shrink: 0;
-}
-
-.gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px;
-}
-
-.galleryItem {
-  margin: 0;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-elevated);
-}
-.galleryItem img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  display: block;
-}
-.galleryItem figcaption {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
 @media (max-width: 640px) {
   .content { padding: 28px 0 20px 20px; }
   .header { padding-right: 20px; }
   .title { font-size: 26px; }
   .item { width: 240px; margin-right: 20px; }
   .navBtnRight { right: 20px; }
-  .progressTrack, .dragHint, .extras { margin-right: 20px; padding-right: 20px; }
-  .gallery { grid-template-columns: 1fr 1fr; }
+  .progressTrack, .dragHint { margin-right: 20px; padding-right: 20px; }
 }
