@@ -208,7 +208,16 @@ export default function OrgChart({
     // Supabase importa setores com prefixo 'sec-'; a API externa usa o UUID puro.
     // Normaliza para o UUID canônico para que getSubtree encontre os filhos certos.
     const canonId = id.startsWith("sec-") ? id.slice(4) : id;
-    setSectorStack((prev) => [...prev, canonId]);
+    setSectorStack((prev) => {
+      // Sem isso, apertar repetidamente o card do setor/sub-setor JÁ aberto
+      // (inclusive o card central, que só desativa o onClick React — o
+      // mecanismo real de abertura é via data-sector-id no pointerdown/up,
+      // que o card central também tem) empilha o mesmo id de novo a cada
+      // toque. "Voltar" só desempilha 1 nível por vez, então a tela parece
+      // "entrar em camadas infinitamente" sem nunca sair do lugar.
+      if (prev.length > 0 && prev[prev.length - 1] === canonId) return prev;
+      return [...prev, canonId];
+    });
   }, []);
 
   const goBack = useCallback(() => {
