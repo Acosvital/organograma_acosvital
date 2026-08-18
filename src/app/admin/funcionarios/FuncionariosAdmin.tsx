@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import Link from 'next/link';
 import Avatar from '@/components/ui/Avatar';
+import ImageUploadField from '@/components/ImageUploadField/ImageUploadField';
 import type { Funcionario, Cargo, Setor, Unidade } from '@/types/adminCore';
 import { NVL_LABELS } from '@/types/adminCore';
 import { levelColors } from '@/data/orgData';
@@ -498,10 +499,15 @@ function FuncionarioDrawer({
             })()}
 
             <div className={styles.field}>
-              <label className={styles.label}>URL da foto</label>
-              <input className={styles.input} value={form.photo_url}
-                onChange={e => setForm(f => ({ ...f, photo_url: e.target.value }))}
-                placeholder="https://…" />
+              <ImageUploadField
+                label="Foto"
+                value={form.photo_url}
+                onChange={url => setForm(f => ({ ...f, photo_url: url }))}
+                uploadEndpoint="/api/admin/upload/pessoas"
+                aspectRatio={1}
+                shape="circle"
+                recommendedSize={{ width: 500, height: 500 }}
+              />
             </div>
 
             {/* Toggle co-diretor */}
