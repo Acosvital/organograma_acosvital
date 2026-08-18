@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiPut, apiDelete, handleApiError } from '@/lib/apiClient';
+import { revalidateTag } from 'next/cache';
+import { apiPut, apiDelete, handleApiError, API_CACHE_TAG } from '@/lib/apiClient';
 import { guard } from '@/lib/routeGuard';
 import { isValidUUID, badRequest, validateNvlPermissao, parseJsonBody } from '@/lib/validation';
 
@@ -34,6 +35,7 @@ export async function PUT(
 
   try {
     const data = await apiPut(`/cargos/${id}`, patch);
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json(data);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao atualizar cargo.');
@@ -55,6 +57,7 @@ export async function DELETE(
 
   try {
     await apiDelete(`/cargos/${id}`);
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json({ ok: true });
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao excluir cargo.');
