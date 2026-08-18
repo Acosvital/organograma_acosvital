@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { FilerobotImageEditorConfig } from 'react-filerobot-image-editor';
+import { MAX_UPLOAD_SIZE, ALLOWED_UPLOAD_TYPES } from '@/lib/uploadLimits';
 import styles from './ImageUploadField.module.css';
 
 // Usa canvas/DOM do navegador — nunca renderiza no servidor. Importante: NÃO
@@ -14,11 +15,11 @@ const FilerobotImageEditor = dynamic(() => import('react-filerobot-image-editor'
 const ADJUST_TAB = 'Adjust' as const;
 const CROP_TOOL = 'Crop' as const;
 
-const ALLOWED_TYPES = 'image/png,image/jpeg,image/webp';
-// Mantido em espelho ao limite do servidor (rotas /api/admin/upload/*) — falha
-// cedo no navegador em vez de deixar o usuário esperar um upload de um
-// arquivo enorme só para ser rejeitado depois.
-const MAX_SIZE = 8 * 1024 * 1024;
+const ALLOWED_TYPES = ALLOWED_UPLOAD_TYPES.join(',');
+// Mesmo limite usado pelas rotas /api/admin/upload/* (src/lib/uploadLimits.ts)
+// — falha cedo no navegador em vez de deixar o usuário esperar um upload de
+// um arquivo enorme só para ser rejeitado depois.
+const MAX_SIZE = MAX_UPLOAD_SIZE;
 
 interface Props {
   /** URL atual da imagem (proxy /api/fotos, URL pública do SeaweedFS, ou vazio). */
@@ -111,7 +112,14 @@ export default function ImageUploadField({
       const json = await res.json();
       if (!res.ok) {
         setError(json.error ?? 'Erro ao enviar imagem.');
-        setCanRetry(true);
+        // Só oferece retry para falhas que podem passar numa nova tentativa
+        // (rede, 5xx do servidor/S3). Erros 4xx são validações (tipo/tamanho/
+        // assinatura do arquivo) — reenviar os mesmos bytes falha de novo.
+        if (res.status >= 500) {
+          setCanRetry(true);
+        } else {
+          pendingUploadRef.current = null;
+        }
         return;
       }
       pendingUploadRef.current = null;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { guard } from '@/lib/routeGuard';
-import { s3, PESSOAS_BUCKET, isValidUploadKey } from '@/lib/s3Client';
+import { getS3Client, PESSOAS_BUCKET, isValidUploadKey } from '@/lib/s3Client';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   try {
-    const obj = await s3.send(new GetObjectCommand({ Bucket: PESSOAS_BUCKET, Key: objectKey }));
+    const obj = await getS3Client().send(new GetObjectCommand({ Bucket: PESSOAS_BUCKET, Key: objectKey }));
     const body = obj.Body?.transformToWebStream();
     if (!body) return NextResponse.json({ error: 'Foto não encontrada.' }, { status: 404 });
 
@@ -35,8 +35,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (err) {
-    const code = (err as { name?: string })?.name;
-    if (code === 'NoSuchKey' || code === 'NotFound') {
+    // O nome do erro ('NoSuchKey'/'NotFound') é a convenção da AWS — o
+    // SeaweedFS pode não replicá-la exatamente, então também aceita o status
+    // HTTP 404 devolvido pelo gateway como sinal de "objeto não existe",
+    // independente do nome que o SDK deu ao erro.
+    const name = (err as { name?: string })?.name;
+    const httpStatus = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    if (name === 'NoSuchKey' || name === 'NotFound' || httpStatus === 404) {
       return NextResponse.json({ error: 'Foto não encontrada.' }, { status: 404 });
     }
     console.error('[fotos] falha ao buscar objeto do S3:', err);
