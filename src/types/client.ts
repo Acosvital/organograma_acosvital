@@ -45,6 +45,10 @@ export interface ClientPoint {
   lon:       number;
   /** Campos detalhados carregados sob demanda (apenas unidades). */
   detail?:   ClientPointDetail;
+  /** Disponíveis desde a carga inicial (sem esperar `detail`) para o globo poder
+   *  priorizar o rótulo da matriz e desenhar a linha matriz→filial de cara. */
+  tipoUnidade?: 'matriz' | 'filial';
+  matrizId?:    string | null;
   // ── Campos legados (usado por Unidades / GlobeSidebar) ──────────────────
   /** @deprecated use codigo */
   codigo_omie?: number;
@@ -86,7 +90,14 @@ export function toClientPoint(c: ApiCliente, lat: number, lon: number): ClientPo
 
 /** Converte ClientPoint para o shape mínimo que o GlobeCanvas aceita */
 export function toGlobePoint(c: ClientPoint) {
-  return { id: c.id, lat: c.lat, lon: c.lon, label: c.nome };
+  return {
+    id:        c.id,
+    lat:       c.lat,
+    lon:       c.lon,
+    label:     c.nome,
+    isMatriz:  c.tipoUnidade === 'matriz',
+    matrizId:  c.matrizId ? hashCode(c.matrizId) : null,
+  };
 }
 
 function hashCode(s: string): number {

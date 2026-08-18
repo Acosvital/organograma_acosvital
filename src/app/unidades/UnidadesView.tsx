@@ -13,6 +13,8 @@ interface ApiUnidade {
   id:            string;
   nome_fantasia: string;
   razao_social:  string;
+  tipo_unidade?: 'matriz' | 'filial';
+  matriz_id?:    string | null;
   cidade:        string | null;
   estado:        string | null;
   latitude_y:    number | null;
@@ -44,12 +46,14 @@ function hashCode(s: string): number {
 
 function toPoint(u: ApiUnidade): ClientPoint {
   return {
-    id:       hashCode(u.id),
-    codigo:   u.id,
-    nome:     u.nome_fantasia || u.razao_social,
-    endereco: [u.cidade, u.estado].filter(Boolean).join(', '),
-    lat:      Number(u.latitude_y),
-    lon:      Number(u.longitude_x),
+    id:          hashCode(u.id),
+    codigo:      u.id,
+    nome:        u.nome_fantasia || u.razao_social,
+    endereco:    [u.cidade, u.estado].filter(Boolean).join(', '),
+    lat:         Number(u.latitude_y),
+    lon:         Number(u.longitude_x),
+    tipoUnidade: u.tipo_unidade,
+    matrizId:    u.matriz_id,
   };
 }
 
