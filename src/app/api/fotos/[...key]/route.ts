@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { guard } from '@/lib/routeGuard';
-import { getS3Client, PESSOAS_BUCKET, isValidUploadKey } from '@/lib/s3Client';
+import { getS3Client, PESSOAS_BUCKET, isSafeObjectKey } from '@/lib/s3Client';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,10 +16,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { key } = await params;
   const objectKey = key.join('/');
 
-  // Só o formato exato gerado pelo upload é aceito — barra a tentativa de path
-  // traversal (ex.: segmentos '..' vindos de barras codificadas no catch-all)
-  // sem depender de normalização de URL, que não cobre esse caso.
-  if (!isValidUploadKey(objectKey)) {
+  // Bloqueia path traversal (segmentos '..'/'.'/vazios — inclusive vindos de
+  // barras codificadas '%2f' dentro de um único segmento do catch-all) sem
+  // travar no formato de nome — fotos migradas de antes deste app não seguem
+  // a convenção "uploads/<uuid>.<ext>" das novas e precisam continuar servindo.
+  if (!isSafeObjectKey(objectKey)) {
     return NextResponse.json({ error: 'Foto não encontrada.' }, { status: 404 });
   }
 

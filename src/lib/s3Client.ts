@@ -45,12 +45,22 @@ export const HISTORIA_BUCKET = 'organograma-prd-historia';
 export const EMPRESA_BUCKET = 'organograma-prd-empresa';
 
 // Único formato de chave gerado pelas rotas de upload (uploads/<uuid>.<ext>) —
-// /api/fotos/[...key] e os DELETE de upload/pessoas e upload/historia usam
-// isto para rejeitar qualquer chave fora desse formato (defesa contra path
-// traversal via segmentos '..' ou barras codificadas no catch-all da rota).
+// usado nos DELETE de upload/pessoas e upload/historia, que só precisam
+// aceitar objetos que o próprio app criou (nunca uma foto legada/migrada).
 export const UPLOAD_KEY_RE =
   /^uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:png|jpe?g|webp)$/i;
 
 export function isValidUploadKey(key: string): boolean {
   return UPLOAD_KEY_RE.test(key);
+}
+
+// Chave "segura" para LEITURA em /api/fotos/[...key]: bloqueia path traversal
+// (segmentos '..'/'.'/vazios — inclusive os que só aparecem depois de decodificar
+// uma barra codificada '%2f' dentro de um único segmento do catch-all) sem
+// travar no formato de nome. Diferente de isValidUploadKey: fotos migradas de
+// antes deste app (ex. "Diretoria/Fulano.webp", "Gerencia/beltrano.webp") não
+// seguem a convenção "uploads/<uuid>.<ext>" e precisam continuar acessíveis.
+export function isSafeObjectKey(key: string): boolean {
+  if (!key) return false;
+  return key.split('/').every(seg => seg.length > 0 && seg !== '.' && seg !== '..');
 }
