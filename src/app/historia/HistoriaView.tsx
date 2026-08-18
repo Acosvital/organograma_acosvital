@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useFsMode } from '@/lib/fsContext';
 import type { HistoriaContent, HistoriaTimelineItem } from '@/types/historia';
 import styles from './HistoriaView.module.css';
 
@@ -15,6 +16,7 @@ interface Props {
 const DRAG_THRESHOLD = 6;
 
 export default function HistoriaView({ historia, error = false }: Props) {
+  const fsMode = useFsMode();
   const paragraphs = historia?.texto.split(/\n\s*\n/).filter(p => p.trim()) ?? [];
   const timeline = useMemo(
     () => [...(historia?.timeline ?? [])].sort((a, b) => a.ano - b.ano),
@@ -104,7 +106,7 @@ export default function HistoriaView({ historia, error = false }: Props) {
       )}
       <div className={styles.bgGradient} />
 
-      <div className={styles.content}>
+      <div className={`${styles.content} ${fsMode !== 'none' ? styles.shifted : ''}`}>
         {error && <p className={styles.status}>Não foi possível carregar esta página.</p>}
 
         {!error && historia && (
