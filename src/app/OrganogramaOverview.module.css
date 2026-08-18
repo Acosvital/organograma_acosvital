@@ -17,6 +17,15 @@
   flex-direction: column;
   gap: 24px;
   height: 100%;
+  padding-left: 0;
+  transition: padding-left 280ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Tela cheia (limpa ou modo TV): sidebar flutuante ocupa a faixa esquerda
+   (12px + 68px colapsada) por cima do conteúdo — desloca pra não cobrir o
+   card da diretoria, que fica coladinho na borda esquerda do palco. */
+.content.shifted {
+  padding-left: 100px;
 }
 
 .prompt {

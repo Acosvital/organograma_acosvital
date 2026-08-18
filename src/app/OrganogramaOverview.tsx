@@ -5,6 +5,7 @@ import Link from 'next/link';
 import CenterCard from '@/components/CenterCard/CenterCard';
 import SpaceBackground from '@/components/Globe/SpaceBackground';
 import { levelColors } from '@/data/orgData';
+import { useFsMode } from '@/lib/fsContext';
 import type { PositionedNode } from '@/types/orgChart';
 import type { Unidade } from '@/types/adminCore';
 import styles from './OrganogramaOverview.module.css';
@@ -110,6 +111,7 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
   const dragRef      = useRef<{ startX: number; startScroll: number; dragging: boolean; moved: boolean; pointerId: number } | null>(null);
 
   const elbowPath = useElbowPath(stageRef, directorsRef, scrollRef);
+  const fsMode = useFsMode();
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const el = scrollRef.current;
@@ -157,7 +159,7 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
     <div className={styles.page}>
       <SpaceBackground />
 
-      <div className={styles.content}>
+      <div className={`${styles.content} ${fsMode !== 'none' ? styles.shifted : ''}`}>
       <p className={styles.prompt}>Organograma — visão geral</p>
 
       {error && <p className={styles.status}>Não foi possível carregar os dados.</p>}
