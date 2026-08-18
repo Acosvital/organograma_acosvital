@@ -5,9 +5,9 @@ import { setUnidadeCardConfig } from '@/lib/data/organogramaCards';
 
 export const dynamic = 'force-dynamic';
 
-// Define (ou limpa, com url: null) a imagem de empresa exibida no card desta
-// unidade no organograma geral — independente do cadastro da unidade em si
-// (API externa), guardada em src/lib/data/organogramaCards.ts.
+// Define (ou limpa, com cor: null) a cor do card desta unidade no organograma
+// geral — independente do cadastro da unidade em si (API externa), guardada
+// em src/lib/data/organogramaCards.ts.
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -21,14 +21,15 @@ export async function PUT(
   const { body, error: bodyError } = await parseJsonBody(request);
   if (bodyError) return bodyError;
 
-  const { url } = (body ?? {}) as { url?: unknown };
-  if (url !== null && typeof url !== 'string') return badRequest('url inválida.');
+  const { cor } = (body ?? {}) as { cor?: unknown };
+  if (cor !== null && typeof cor !== 'string') return badRequest('cor inválida.');
+  if (typeof cor === 'string' && !/^#[0-9a-f]{6}$/i.test(cor)) return badRequest('cor deve ser um hex #rrggbb.');
 
   try {
-    await setUnidadeCardConfig(id, { imageUrl: url || null });
+    await setUnidadeCardConfig(id, { color: cor || null });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error('[unidades-rh/imagem] falha ao salvar configuração:', err);
+    console.error('[unidades-rh/cor] falha ao salvar configuração:', err);
     return NextResponse.json({ error: 'Falha ao salvar.' }, { status: 502 });
   }
 }

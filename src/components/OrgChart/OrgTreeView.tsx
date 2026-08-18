@@ -20,6 +20,18 @@ function nodeColor(node: OrgNode, levelColors: Record<number, string>): string {
   return node.isSector ? (node.sectorColor ?? levelColors[2]) : (levelColors[node.level] ?? '#94a3b8');
 }
 
+/** IDs de nós podem vir com um prefixo curto de origem antes do UUID puro —
+ *  'sec-' para setores importados via Supabase (ver radialLayout.ts/org.ts),
+ *  'rh-' para o parentId de setores que reportam a um gerente/diretor. Remove
+ *  qualquer prefixo desse tipo para comparar sempre pelo UUID canônico —
+ *  sem isso, um setor cujo parentId é "rh-<uuid-do-gerente>" nunca encontra
+ *  o pai (cujo id é só "<uuid-do-gerente>", sem prefixo), e a árvore inteira
+ *  abaixo dele — inclusive todos os funcionários do setor — some da Lista. */
+function canonId(id: string): string {
+  const m = id.match(/^[a-z]+-([0-9a-f-]{36})$/i);
+  return m ? m[1] : id;
+}
+
 export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }: Props) {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -27,18 +39,28 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
   const [kbOpen, setKbOpen] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement>(null);
 
-  // Filhos indexados por parentId, preservando a ordem de chegada.
+  // Filhos indexados pelo parentId canônico, preservando a ordem de chegada.
   const childrenOf = useMemo(() => {
     const map = new Map<string, OrgNode[]>();
     for (const n of nodes) {
       if (!n.parentId) continue;
-      if (!map.has(n.parentId)) map.set(n.parentId, []);
-      map.get(n.parentId)!.push(n);
+      const key = canonId(n.parentId);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(n);
     }
     return map;
   }, [nodes]);
 
-  const roots = useMemo(() => nodes.filter((n) => !n.parentId), [nodes]);
+  // Um setor pode reportar a um gerente/diretor de OUTRA unidade — esse gerente
+  // é removido de `nodes` (que só traz pessoas desta unidade, além de setores e
+  // diretoria), então o parentId do setor não aponta para ninguém presente aqui.
+  // Sem isso, o setor (e toda a equipe dele) some da lista por falta de um pai
+  // visível — em vez disso, trata como raiz própria, igual à Diretoria.
+  const idSet = useMemo(() => new Set(nodes.map((n) => canonId(n.id))), [nodes]);
+  const roots = useMemo(
+    () => nodes.filter((n) => !n.parentId || !idSet.has(canonId(n.parentId))),
+    [nodes, idSet],
+  );
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -69,7 +91,7 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
     });
 
   function renderRow(node: OrgNode, depth: number) {
-    const kids = childrenOf.get(node.id) ?? [];
+    const kids = childrenOf.get(canonId(node.id)) ?? [];
     const hasKids = kids.length > 0;
     const isCollapsed = collapsed.has(node.id);
     const color = nodeColor(node, levelColors);
@@ -118,7 +140,10 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
           inputMode={isTouch ? 'none' : undefined}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setKbOpen(true)}
-          autoFocus
+          // Em touch, autoFocus abriria o teclado virtual assim que a Lista monta,
+          // cobrindo a árvore de pessoas com o overlay do teclado (só a Diretoria,
+          // no topo, ficava visível). Foco automático só faz sentido no desktop.
+          autoFocus={!isTouch}
         />
         {query && (
           <button type="button" className={styles.clear} onClick={() => setQuery('')} aria-label="Limpar busca">×</button>

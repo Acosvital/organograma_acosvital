@@ -465,7 +465,44 @@ export function calculateEvenSectorLayout(
       let nodeAngles: Array<{ node: OrgNode; angle: number }>;
 
       if (ring === 1) {
-        nodeAngles = ringNodes.map((node, i) => ({ node, angle: START + step * i }));
+        // Passo uniforme ignora quantos filhos cada líder tem — dois líderes com
+        // leques de subordinados bem diferentes ficam com o mesmo espaço, e o
+        // leque do maior colide com o do vizinho. Aqui cada líder recebe uma
+        // largura angular proporcional ao que seu próprio grupo do ring 2 vai
+        // precisar (mesma fórmula de passo do ring 2), então o leque cabe sem
+        // precisar comprimir depois. Não altera o raio do anel, só a distribuição.
+        const ring2Nodes = ringCollect.get(2) ?? [];
+        let step2 = 0;
+        if (ring2Nodes.length > 0) {
+          const r2         = dynamicRingR.get(2) ?? 0;
+          const maxVR2     = Math.max(...ring2Nodes.map((n) => visualR(n)));
+          const footprint2 = Math.max(2 * maxVR2, LABEL_FOOTPRINT_PX);
+          const tightStep2 = r2 > 0 ? (footprint2 + RING_ANG_GAP) / r2 : 0;
+          const evenStep2  = PI2 / ring2Nodes.length;
+          step2 = sectorIsLarge ? evenStep2 : Math.min(evenStep2, tightStep2);
+        }
+        const childCount = new Map<string, number>();
+        ring2Nodes.forEach((n) => {
+          if (n.parentId) childCount.set(n.parentId, (childCount.get(n.parentId) ?? 0) + 1);
+        });
+
+        const ownHalf = step / 2;
+        const halfWidths = ringNodes.map((node) => {
+          const k = childCount.get(node.id) ?? 0;
+          const fanHalf = k > 1 ? ((k - 1) / 2) * step2 : 0;
+          return Math.max(ownHalf, fanHalf);
+        });
+
+        const totalWidth = halfWidths.reduce((s, h) => s + h * 2, 0);
+        const scale = totalWidth > PI2 ? PI2 / totalWidth : 1;
+
+        let cursor = START;
+        nodeAngles = ringNodes.map((node, i) => {
+          const hw = halfWidths[i] * scale;
+          const angle = cursor + hw;
+          cursor += hw * 2;
+          return { node, angle };
+        });
       } else {
         ringNodes.sort((a, b) => norm(effectiveAngle(a)) - norm(effectiveAngle(b)));
         const groups: Array<{ parentAngle: number; nodes: OrgNode[] }> = [];
@@ -480,14 +517,19 @@ export function calculateEvenSectorLayout(
         });
         nodeAngles = [];
         const G = groups.length;
+
         groups.forEach(({ parentAngle, nodes: grp }, gi) => {
           const k = grp.length;
-          let effectiveStep = step;
+          let leftStep = step, rightStep = step;
 
           if (G > 1 && k > 1) {
-            // Limita o arco do grupo para não invadir o território do pai vizinho.
-            // Calcula meia-distância até o pai anterior e o próximo (normalizados
-            // para evitar problemas de wrap em 0/2π).
+            // Limita cada LADO do leque independentemente pela distância até o
+            // pai vizinho daquele lado — não pelo menor dos dois lados aplicado
+            // aos dois igualmente. Dois líderes próximos um do outro (lado
+            // "interno" apertado) ainda têm bastante espaço vazio do lado de
+            // fora (sem vizinho perto); usar o mesmo limite apertado nos dois
+            // lados desperdiça esse espaço e obriga os subordinados a ficarem
+            // colados — o sintoma reportado eram cards "espremidos".
             const pNorm    = norm(parentAngle);
             const prevNorm = gi > 0
               ? norm(groups[gi - 1].parentAngle)
@@ -495,15 +537,17 @@ export function calculateEvenSectorLayout(
             const nextNorm = gi < G - 1
               ? norm(groups[gi + 1].parentAngle)
               : norm(groups[0].parentAngle) + PI2;
-            const maxHalfArc = Math.min(pNorm - prevNorm, nextNorm - pNorm) / 2 * 0.82;
-            const naturalHalf = (k - 1) / 2 * step;
-            if (naturalHalf > maxHalfArc) {
-              effectiveStep = (maxHalfArc * 2) / (k - 1);
-            }
+            const leftHalfArc  = (pNorm - prevNorm) / 2 * 0.82;
+            const rightHalfArc = (nextNorm - pNorm) / 2 * 0.82;
+            const naturalHalf  = (k - 1) / 2 * step;
+            if (naturalHalf > leftHalfArc)  leftStep  = (leftHalfArc  * 2) / (k - 1);
+            if (naturalHalf > rightHalfArc) rightStep = (rightHalfArc * 2) / (k - 1);
           }
 
           grp.forEach((node, i) => {
-            nodeAngles.push({ node, angle: parentAngle + (i - (k - 1) / 2) * effectiveStep });
+            const offset = i - (k - 1) / 2;
+            const s = offset < 0 ? leftStep : rightStep;
+            nodeAngles.push({ node, angle: parentAngle + offset * s });
           });
         });
       }

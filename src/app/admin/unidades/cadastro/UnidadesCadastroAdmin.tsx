@@ -3,13 +3,21 @@
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import type { Unidade } from '@/types/adminCore';
-import type { OrganogramaCardImages } from '@/lib/data/organogramaCards';
+import type { OrganogramaCardConfigs } from '@/lib/data/organogramaCards';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../../_icons';
 import ImageUploadField from '@/components/ImageUploadField/ImageUploadField';
 import styles from '../../crud.module.css';
 import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
 
 const UNIDADE_LOGO_UPLOAD_ENDPOINT = '/api/admin/upload/unidade-logo';
+
+// Mesma paleta usada em SetoresAdmin.tsx (sem componente compartilhado ainda).
+const COLOR_PALETTE = [
+  '#3b82f6', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
+  '#eab308', '#22c55e', '#10b981', '#06b6d4', '#6366f1',
+  '#f43f5e', '#84cc16', '#14b8a6', '#0ea5e9', '#a855f7',
+  '#e879f9', '#fb923c', '#4ade80',
+];
 
 const BLANK = {
   cnpj: '', razao_social: '', nome_fantasia: '',
@@ -41,10 +49,10 @@ function maskPhone(v: string) {
 
 interface Props {
   initialUnidades: Unidade[];
-  initialCardImages: OrganogramaCardImages;
+  initialCardConfigs: OrganogramaCardConfigs;
 }
 
-export default function UnidadesCadastroAdmin({ initialUnidades, initialCardImages }: Props) {
+export default function UnidadesCadastroAdmin({ initialUnidades, initialCardConfigs }: Props) {
   const [unidades,   setUnidades]   = useState<Unidade[]>(initialUnidades);
   const [loading,    setLoading]    = useState(false);
   const [search,     setSearch]     = useState('');
@@ -56,13 +64,14 @@ export default function UnidadesCadastroAdmin({ initialUnidades, initialCardImag
   const [cepLoading, setCepLoading] = useState(false);
   const [toast,      setToast]      = useState<{ msg: string; err: boolean } | null>(null);
   const [confirm,    setConfirm]    = useState<Unidade | null>(null);
-  // Imagem de empresa exibida no card do organograma geral, no lugar da foto
-  // do(s) gerente(s) — independente do resto do formulário: salva sozinha
-  // assim que trocada (ver onChange do ImageUploadField abaixo), porque o
-  // upload/remoção já acontece no servidor no mesmo instante, então esperar o
-  // botão "Salvar alterações" deixaria a URL órfã se o usuário só cancelasse.
-  const [cardImages,  setCardImages]  = useState<OrganogramaCardImages>(initialCardImages);
+  // Imagem/cor do card desta unidade no organograma geral — independentes do
+  // resto do formulário: salvam sozinhas assim que trocadas (ver handlers
+  // abaixo), porque a imagem já sobe pro servidor no mesmo instante do upload,
+  // então esperar o botão "Salvar alterações" deixaria a URL órfã se o
+  // usuário só cancelasse. A cor segue o mesmo padrão por consistência.
+  const [cardConfigs, setCardConfigs] = useState<OrganogramaCardConfigs>(initialCardConfigs);
   const [cardImageUrl, setCardImageUrl] = useState('');
+  const [cardColor, setCardColor] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string, err = false) => {
     setToast({ msg, err });
@@ -122,7 +131,8 @@ export default function UnidadesCadastroAdmin({ initialUnidades, initialCardImag
 
   function startEdit(u: Unidade) {
     setEditing(u);
-    setCardImageUrl(cardImages[u.id] ?? '');
+    setCardImageUrl(cardConfigs[u.id]?.imageUrl ?? '');
+    setCardColor(cardConfigs[u.id]?.color ?? null);
     setForm({
       cnpj:          u.cnpj,
       razao_social:  u.razao_social,
@@ -145,7 +155,7 @@ export default function UnidadesCadastroAdmin({ initialUnidades, initialCardImag
     });
   }
 
-  function cancelEdit() { setEditing(null); setForm(BLANK); setGeoState('idle'); setCardImageUrl(''); }
+  function cancelEdit() { setEditing(null); setForm(BLANK); setGeoState('idle'); setCardImageUrl(''); setCardColor(null); }
 
   async function handleCardImageChange(unidadeId: string, url: string) {
     setCardImageUrl(url);
@@ -160,13 +170,28 @@ export default function UnidadesCadastroAdmin({ initialUnidades, initialCardImag
         showToast(json.error ?? 'Erro ao salvar a imagem.', true);
         return;
       }
-      setCardImages(m => {
-        const next = { ...m };
-        if (url) next[unidadeId] = url; else delete next[unidadeId];
-        return next;
-      });
+      setCardConfigs(m => ({ ...m, [unidadeId]: { imageUrl: url || null, color: m[unidadeId]?.color ?? null } }));
     } catch {
       showToast('Falha de conexão ao salvar a imagem.', true);
+    }
+  }
+
+  async function handleCardColorChange(unidadeId: string, cor: string | null) {
+    setCardColor(cor);
+    try {
+      const res = await fetch(`/api/admin/unidades-rh/${unidadeId}/cor`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cor }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        showToast(json.error ?? 'Erro ao salvar a cor.', true);
+        return;
+      }
+      setCardConfigs(m => ({ ...m, [unidadeId]: { imageUrl: m[unidadeId]?.imageUrl ?? null, color: cor } }));
+    } catch {
+      showToast('Falha de conexão ao salvar a cor.', true);
     }
   }
 
@@ -342,19 +367,47 @@ export default function UnidadesCadastroAdmin({ initialUnidades, initialCardImag
             </div>
 
             {editing ? (
-              <div className={styles.field}>
-                <ImageUploadField
-                  label="Imagem da empresa (card do organograma)"
-                  value={cardImageUrl}
-                  onChange={url => handleCardImageChange(editing.id, url)}
-                  uploadEndpoint={UNIDADE_LOGO_UPLOAD_ENDPOINT}
-                  recommendedSize={{ width: 300, height: 300 }}
-                  hint="Aparece no círculo do card desta unidade no organograma geral, no lugar da foto do(s) gerente(s). O nome deles continua aparecendo embaixo do card. Deixe em branco para mostrar a foto do(s) gerente(s)."
-                />
-              </div>
+              <>
+                <div className={styles.field}>
+                  <ImageUploadField
+                    label="Imagem da empresa (card do organograma)"
+                    value={cardImageUrl}
+                    onChange={url => handleCardImageChange(editing.id, url)}
+                    uploadEndpoint={UNIDADE_LOGO_UPLOAD_ENDPOINT}
+                    recommendedSize={{ width: 300, height: 300 }}
+                    hint="Aparece no círculo do card desta unidade no organograma geral, no lugar da foto do(s) gerente(s). O nome deles continua aparecendo embaixo do card. Deixe em branco para mostrar a foto do(s) gerente(s)."
+                  />
+                </div>
+
+                <div className={styles.field}>
+                  <label className={styles.label}>Cor do card (organograma)</label>
+                  <div className={styles.colorRow}>
+                    {COLOR_PALETTE.map(cor => (
+                      <button
+                        key={cor}
+                        type="button"
+                        className={`${styles.colorSwatch} ${cardColor === cor ? styles.colorSwatchActive : ''}`}
+                        style={{ background: cor }}
+                        onClick={() => handleCardColorChange(editing.id, cor)}
+                        title={cor}
+                      />
+                    ))}
+                    {cardColor && (
+                      <button
+                        type="button"
+                        className={styles.btnSecondary}
+                        onClick={() => handleCardColorChange(editing.id, null)}
+                      >
+                        Usar cor padrão
+                      </button>
+                    )}
+                  </div>
+                  <span className={styles.fieldHint}>Cor do círculo do card desta unidade no organograma geral. Deixe sem seleção para usar a cor padrão.</span>
+                </div>
+              </>
             ) : (
               <div className={styles.field}>
-                <span className={styles.fieldHint}>Salve a unidade para poder definir a imagem exibida no card do organograma.</span>
+                <span className={styles.fieldHint}>Salve a unidade para poder definir a imagem e a cor exibidas no card do organograma.</span>
               </div>
             )}
 
