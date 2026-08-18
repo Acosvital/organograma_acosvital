@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiPost, handleApiError } from '@/lib/apiClient';
+import { revalidateTag } from 'next/cache';
+import { apiPost, handleApiError, API_CACHE_TAG } from '@/lib/apiClient';
 import { guard } from '@/lib/routeGuard';
 import { validateNvlPermissao, parseJsonBody } from '@/lib/validation';
 import { getCargosList } from '@/lib/data/adminCargos';
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest) {
       codigo_empresa: b.codigo_empresa || null,
       id_origem:     b.id_origem ?? null,
     });
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json(data, { status: 201 });
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao criar cargo.');

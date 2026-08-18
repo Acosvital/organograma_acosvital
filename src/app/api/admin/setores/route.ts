@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiPost, apiDelete, handleApiError, fetchAllPages } from '@/lib/apiClient';
+import { revalidateTag } from 'next/cache';
+import { apiPost, apiDelete, handleApiError, fetchAllPages, API_CACHE_TAG } from '@/lib/apiClient';
 import { guard } from '@/lib/routeGuard';
 import { parseJsonBody } from '@/lib/validation';
 import { getSetoresList } from '@/lib/data/adminSetores';
@@ -107,5 +108,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  revalidateTag(API_CACHE_TAG, 'max');
   return NextResponse.json(setorData, { status: 201 });
 }
