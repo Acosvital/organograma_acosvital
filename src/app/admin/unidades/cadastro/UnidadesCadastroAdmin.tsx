@@ -3,9 +3,13 @@
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import type { Unidade } from '@/types/adminCore';
+import type { OrganogramaCardImages } from '@/lib/data/organogramaCards';
 import { IcoEdit, IcoTrash, IcoSearch, IcoEmpty } from '../../_icons';
+import ImageUploadField from '@/components/ImageUploadField/ImageUploadField';
 import styles from '../../crud.module.css';
 import { cachedFetch, invalidateCache, CACHE_KEYS, CACHE_TTL } from '@/lib/dataCache';
+
+const UNIDADE_LOGO_UPLOAD_ENDPOINT = '/api/admin/upload/unidade-logo';
 
 const BLANK = {
   cnpj: '', razao_social: '', nome_fantasia: '',
@@ -37,9 +41,10 @@ function maskPhone(v: string) {
 
 interface Props {
   initialUnidades: Unidade[];
+  initialCardImages: OrganogramaCardImages;
 }
 
-export default function UnidadesCadastroAdmin({ initialUnidades }: Props) {
+export default function UnidadesCadastroAdmin({ initialUnidades, initialCardImages }: Props) {
   const [unidades,   setUnidades]   = useState<Unidade[]>(initialUnidades);
   const [loading,    setLoading]    = useState(false);
   const [search,     setSearch]     = useState('');
@@ -51,6 +56,13 @@ export default function UnidadesCadastroAdmin({ initialUnidades }: Props) {
   const [cepLoading, setCepLoading] = useState(false);
   const [toast,      setToast]      = useState<{ msg: string; err: boolean } | null>(null);
   const [confirm,    setConfirm]    = useState<Unidade | null>(null);
+  // Imagem de empresa exibida no card do organograma geral, no lugar da foto
+  // do(s) gerente(s) — independente do resto do formulário: salva sozinha
+  // assim que trocada (ver onChange do ImageUploadField abaixo), porque o
+  // upload/remoção já acontece no servidor no mesmo instante, então esperar o
+  // botão "Salvar alterações" deixaria a URL órfã se o usuário só cancelasse.
+  const [cardImages,  setCardImages]  = useState<OrganogramaCardImages>(initialCardImages);
+  const [cardImageUrl, setCardImageUrl] = useState('');
 
   const showToast = useCallback((msg: string, err = false) => {
     setToast({ msg, err });
@@ -110,6 +122,7 @@ export default function UnidadesCadastroAdmin({ initialUnidades }: Props) {
 
   function startEdit(u: Unidade) {
     setEditing(u);
+    setCardImageUrl(cardImages[u.id] ?? '');
     setForm({
       cnpj:          u.cnpj,
       razao_social:  u.razao_social,
@@ -132,7 +145,30 @@ export default function UnidadesCadastroAdmin({ initialUnidades }: Props) {
     });
   }
 
-  function cancelEdit() { setEditing(null); setForm(BLANK); setGeoState('idle'); }
+  function cancelEdit() { setEditing(null); setForm(BLANK); setGeoState('idle'); setCardImageUrl(''); }
+
+  async function handleCardImageChange(unidadeId: string, url: string) {
+    setCardImageUrl(url);
+    try {
+      const res = await fetch(`/api/admin/unidades-rh/${unidadeId}/imagem`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url || null }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        showToast(json.error ?? 'Erro ao salvar a imagem.', true);
+        return;
+      }
+      setCardImages(m => {
+        const next = { ...m };
+        if (url) next[unidadeId] = url; else delete next[unidadeId];
+        return next;
+      });
+    } catch {
+      showToast('Falha de conexão ao salvar a imagem.', true);
+    }
+  }
 
   async function geocodeForm(f: UndForm): Promise<{ lat: number; lon: number } | null> {
     const parts = [f.logradouro, f.numero, f.bairro, f.cidade, f.estado, 'Brasil'].filter(Boolean);
@@ -304,6 +340,23 @@ export default function UnidadesCadastroAdmin({ initialUnidades }: Props) {
                 placeholder="Empresa"
               />
             </div>
+
+            {editing ? (
+              <div className={styles.field}>
+                <ImageUploadField
+                  label="Imagem da empresa (card do organograma)"
+                  value={cardImageUrl}
+                  onChange={url => handleCardImageChange(editing.id, url)}
+                  uploadEndpoint={UNIDADE_LOGO_UPLOAD_ENDPOINT}
+                  recommendedSize={{ width: 300, height: 300 }}
+                  hint="Aparece no círculo do card desta unidade no organograma geral, no lugar da foto do(s) gerente(s). O nome deles continua aparecendo embaixo do card. Deixe em branco para mostrar a foto do(s) gerente(s)."
+                />
+              </div>
+            ) : (
+              <div className={styles.field}>
+                <span className={styles.fieldHint}>Salve a unidade para poder definir a imagem exibida no card do organograma.</span>
+              </div>
+            )}
 
             <div className={styles.field}>
               <label className={styles.label}>Nome do Contato <span className={styles.required}>*</span></label>

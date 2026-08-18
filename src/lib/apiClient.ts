@@ -13,14 +13,22 @@ export class ApiError extends Error {
   }
 }
 
-// Tag única para todas as leituras da API externa — permite invalidar o cache
-// de dados (Next Data Cache) via revalidateTag() assim que uma escrita relevante
-// acontece, em vez de deixar apenas o TTL expirar.
+// Tag para as leituras de estrutura organizacional (cargos/setores/unidades/
+// funcionários e a view agregada do organograma) — essas entidades são
+// genuinamente interdependentes (o organograma e a listagem enriquecida de
+// funcionários combinam as quatro), então uma escrita em qualquer uma
+// legitimamente precisa invalidar as demais.
 export const API_CACHE_TAG = 'acosvital-api';
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+// Tag separada para "Nossa História" — domínio independente da estrutura
+// organizacional. Antes essas leituras usavam a mesma tag acima, então uma
+// escrita em cargos/setores/unidades invalidava também o cache de história (e
+// vice-versa) sem necessidade, forçando refetch de dados que não mudaram.
+export const HISTORIA_CACHE_TAG = 'acosvital-historia';
+
+async function request<T>(path: string, init: RequestInit = {}, cacheTag: string = API_CACHE_TAG): Promise<T> {
   const url = `${BASE}/${path.replace(/^\//, '')}`;
-  const method = (init?.method ?? 'GET').toUpperCase();
+  const method = (init.method ?? 'GET').toUpperCase();
   const isGet = method === 'GET' || method === 'HEAD';
   const res = await fetch(url, {
     ...init,
@@ -28,13 +36,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       'x-api-key':    KEY,
       'Accept':       'application/json',
       'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
+      ...(init.headers ?? {}),
     },
     // GETs entram no Data Cache do Next por um TTL curto (a estrutura organizacional
-    // muda pouco) e são invalidados sob demanda via revalidateTag(API_CACHE_TAG) nas
+    // muda pouco) e são invalidados sob demanda via revalidateTag(cacheTag) nas
     // rotas de escrita — evita refazer a busca completa da árvore a cada navegação.
     ...(isGet
-      ? { next: { revalidate: 30, tags: [API_CACHE_TAG] } }
+      ? { next: { revalidate: 30, tags: [cacheTag] } }
       : { cache: 'no-store' as RequestCache }),
   });
 
@@ -63,6 +71,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export function apiGet<T>(
   path: string,
   params?: Record<string, string | number | undefined>,
+  cacheTag?: string,
 ): Promise<T> {
   let p = path;
   if (params) {
@@ -72,7 +81,7 @@ export function apiGet<T>(
       .join('&');
     if (qs) p += `?${qs}`;
   }
-  return request<T>(p);
+  return request<T>(p, {}, cacheTag);
 }
 
 export function apiPost<T>(path: string, body: unknown): Promise<T> {

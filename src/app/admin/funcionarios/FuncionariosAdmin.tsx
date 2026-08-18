@@ -292,6 +292,7 @@ function FuncionarioDrawer({
   const [openSection, setOpenSection] = useState<string>('dados');
   const toggle = (k: string) => setOpenSection(cur => cur === k ? '' : k);
   const [reportsToSearch, setReportsToSearch] = useState('');
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   // Fechar com Escape (keyboard accessibility)
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -503,6 +504,7 @@ function FuncionarioDrawer({
                 label="Foto"
                 value={form.photo_url}
                 onChange={url => setForm(f => ({ ...f, photo_url: url }))}
+                onUploadingChange={setPhotoUploading}
                 uploadEndpoint="/api/admin/upload/pessoas"
                 aspectRatio={1}
                 shape="circle"
@@ -688,10 +690,10 @@ function FuncionarioDrawer({
           <button
             type="submit"
             className={styles.btnPrimary}
-            disabled={saving}
+            disabled={saving || photoUploading}
             onClick={onSubmit as unknown as React.MouseEventHandler}
           >
-            {saving ? 'Salvando…' : editing ? 'Salvar alterações' : 'Cadastrar funcionário'}
+            {saving ? 'Salvando…' : photoUploading ? 'Enviando foto…' : editing ? 'Salvar alterações' : 'Cadastrar funcionário'}
           </button>
         </div>
       </aside>

@@ -1,4 +1,4 @@
-import { apiGet } from '@/lib/apiClient';
+import { apiGet, HISTORIA_CACHE_TAG } from '@/lib/apiClient';
 import type { HistoriaContent, HistoriaTimelineItem } from '@/types/historia';
 
 interface RawImagem { id: string; url: string; legenda: string | null }
@@ -36,6 +36,6 @@ export function toHistoriaContent(raw: RawHistoria): HistoriaContent {
 }
 
 export async function getHistoriaContent(): Promise<HistoriaContent> {
-  const raw = await apiGet<unknown>('/historia');
+  const raw = await apiGet<unknown>('/historia', undefined, HISTORIA_CACHE_TAG);
   return toHistoriaContent(unwrap(raw));
 }

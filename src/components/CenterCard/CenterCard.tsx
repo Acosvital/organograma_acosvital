@@ -30,12 +30,15 @@ function getShortName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
+/** Só quebra em 2 linhas quando o nome é literalmente "Fulano e/& Beltrano"
+ *  (co-diretores em formato legado, antes de dados usarem " & " — ver
+ *  mergeDirectors). Uma pessoa só nunca deve ser partida ao meio: nomes
+ *  comuns de 2+ palavras (ex. "João Pedro") ou sobrenomes compostos com "e"
+ *  (ex. "Sousa e Silva") continuam numa linha só. */
 function splitName(name: string): [string, string | null] {
   const match = name.match(/^(.+?)\s+[e&]\s+(.+)$/i);
   if (match) return [match[1].trim(), match[2].trim()];
-  const words = name.split(' ');
-  const mid = Math.ceil(words.length / 2);
-  return [words.slice(0, mid).join(' '), words.slice(mid).join(' ') || null];
+  return [name, null];
 }
 
 export default function CenterCard({ node, color, hideText = false }: Props) {
