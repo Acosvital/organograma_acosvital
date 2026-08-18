@@ -10,6 +10,11 @@ interface Props {
   vbW: number;
   /** Oculta labels de texto (modo fullscreen limpo) */
   hideText?: boolean;
+  /** "Nome Sobrenome" (primeiro + segundo nome) em vez de "Nome S." — usado
+   *  para Diretoria/Gerência Geral na visão geral, onde há poucos cards bem
+   *  espaçados. Em anéis de setor com dezenas de pessoas coladas, o nome
+   *  curto continua sendo o padrão. */
+  fullName?: boolean;
 }
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -24,6 +29,11 @@ function getShortName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
+/** Primeiro e segundo nome — usado para Diretoria/Gerência Geral (ver prop `fullName`). */
+function getTwoWordName(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).join(' ');
+}
+
 function truncate(text: string, max: number): string {
   return text.length > max ? text.slice(0, max - 1) + '…' : text;
 }
@@ -33,7 +43,7 @@ function screenR(svgR: number, vbW: number): number {
   return svgR * (900 / vbW);
 }
 
-function NodeCardInner({ node, color, vbW, hideText = false }: Props) {
+function NodeCardInner({ node, color, vbW, hideText = false, fullName = false }: Props) {
   const r = node.radius;
   const sr = screenR(r, vbW);
   const showImage = sr >= 9 && !!node.photoUrl;
@@ -76,7 +86,7 @@ function NodeCardInner({ node, color, vbW, hideText = false }: Props) {
       {showLabel && (
         <>
           <text x={0} y={r + 14} textAnchor="middle" style={{ fill: 'var(--text-primary)' }} fontSize={fontSize} fontWeight="600" fontFamily={FONT}>
-            {getShortName(node.name)}
+            {fullName ? getTwoWordName(node.name) : getShortName(node.name)}
           </text>
           <text x={0} y={r + 26} textAnchor="middle" fill={color} fontSize={fontSize - 1} fontFamily={FONT} opacity={0.88}>
             {truncate(node.role, 22)}
@@ -89,7 +99,7 @@ function NodeCardInner({ node, color, vbW, hideText = false }: Props) {
 
 function propsAreEqual(prev: Props, next: Props): boolean {
   if (prev.node !== next.node || prev.color !== next.color) return false;
-  if (prev.hideText !== next.hideText) return false;
+  if (prev.hideText !== next.hideText || prev.fullName !== next.fullName) return false;
   const prevSR = screenR(prev.node.radius, prev.vbW);
   const nextSR = screenR(next.node.radius, next.vbW);
   return (prevSR >= 9) === (nextSR >= 9) && (prevSR >= 13) === (nextSR >= 13);

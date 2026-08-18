@@ -195,16 +195,35 @@ export default function UnidadesCadastroAdmin({ initialUnidades, initialCardConf
     }
   }
 
-  async function geocodeForm(f: UndForm): Promise<{ lat: number; lon: number } | null> {
-    const parts = [f.logradouro, f.numero, f.bairro, f.cidade, f.estado, 'Brasil'].filter(Boolean);
-    if (!parts.length) return null;
+  async function geocodeQuery(q: string): Promise<{ lat: number; lon: number } | null> {
     try {
-      const url  = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(parts.join(', '))}`;
+      const url  = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
       const res  = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
       const data = await res.json() as Array<{ lat: string; lon: string }>;
       if (!data.length) return null;
       return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
     } catch { return null; }
+  }
+
+  // Nominatim/OSM não indexa toda rua (endereços novos/industriais somem da
+  // busca exata, mesmo com o endereço correto). Em vez de desistir e salvar
+  // sem coordenadas, tenta de novo com o endereço cada vez mais genérico —
+  // rua+número → bairro+cidade → só cidade — até achar algo. Aparecer no
+  // mapa pelo menos no bairro/cidade certo é melhor que não aparecer.
+  async function geocodeForm(f: UndForm): Promise<{ lat: number; lon: number } | null> {
+    const attempts = [
+      [f.logradouro, f.numero, f.bairro, f.cidade, f.estado, 'Brasil'],
+      [f.bairro, f.cidade, f.estado, 'Brasil'],
+      [f.cidade, f.estado, 'Brasil'],
+    ].map((parts) => parts.filter(Boolean).join(', ')).filter(Boolean);
+
+    for (let i = 0; i < attempts.length; i++) {
+      const coords = await geocodeQuery(attempts[i]);
+      if (coords) return coords;
+      // Respeita o limite de 1 req/s do Nominatim entre tentativas.
+      if (i < attempts.length - 1) await new Promise((r) => setTimeout(r, 1100));
+    }
+    return null;
   }
 
   async function handleSubmit(e: React.FormEvent) {

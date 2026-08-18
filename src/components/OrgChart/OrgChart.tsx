@@ -317,6 +317,61 @@ export default function OrgChart({
     return map;
   }, [overviewSectors]);
 
+  // ── Gerência Geral orbitando lentamente a Diretoria ────────────────────
+  // Ângulo acumulado (rad); avança devagar via setInterval em vez de
+  // requestAnimationFrame a 60fps — a rotação é lenta o bastante que
+  // atualizar a cada 80ms já fica suave, e evita re-renderizar a árvore
+  // inteira do SVG 60x/s por uma animação puramente decorativa. Pausa
+  // fora do modo visão-geral e com prefers-reduced-motion.
+  const [gmOrbitAngle, setGmOrbitAngle] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (activeSectorId) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const ROTATION_PERIOD_MS = 180000; // uma volta completa a cada 3min — "girando lentamente"
+    const STEP_MS = 80;
+    const increment = (STEP_MS / ROTATION_PERIOD_MS) * Math.PI * 2;
+    const id = setInterval(() => {
+      setGmOrbitAngle((a) => (a + increment) % (Math.PI * 2));
+    }, STEP_MS);
+    return () => clearInterval(id);
+  }, [activeSectorId]);
+
+  // GMs com o ângulo orbital aplicado — mesmo raio do anel original, só o
+  // ângulo avança. Alimenta tanto os cards quanto as conexões/arc-spines
+  // abaixo, para que tudo (card, linha até a diretoria, arco até os
+  // setores) se mova junto e nada fique "desgrudado" durante o giro.
+  const rotatedGMs = useMemo(() => {
+    if (gmOrbitAngle === 0) return overviewGMs;
+    return overviewGMs.map((gm) => {
+      const r = Math.sqrt(gm.x * gm.x + gm.y * gm.y);
+      const angle = Math.atan2(gm.y, gm.x) + gmOrbitAngle;
+      return { ...gm, x: Math.cos(angle) * r, y: Math.sin(angle) * r, angle };
+    });
+  }, [overviewGMs, gmOrbitAngle]);
+
+  // Conexões Diretoria→GM recalculadas a partir da posição orbital atual
+  // (a lista `connections` vinda de fora é estática, calculada uma vez a
+  // partir do layout original — não acompanharia o giro).
+  const rotatedGMConnections = useMemo<Connection[]>(() => {
+    const director = overviewDirectors[0];
+    if (!director) return [];
+    return rotatedGMs.map((gm) => {
+      const dist = Math.sqrt(gm.x * gm.x + gm.y * gm.y) || 1;
+      const nx = gm.x / dist;
+      const ny = gm.y / dist;
+      return {
+        fromId: director.id,
+        toId: gm.id,
+        fromX: nx * director.radius,
+        fromY: ny * director.radius,
+        toX: gm.x - nx * gm.radius,
+        toY: gm.y - ny * gm.radius,
+        level: gm.level,
+      };
+    });
+  }, [rotatedGMs, overviewDirectors]);
+
   // ── Sector detail derived data ────────────────────────────────────────
   const detailCenter = useMemo(
     () => sectorDetail?.pos.find((p) => p.id === activeSectorId) ?? null,
@@ -731,7 +786,15 @@ export default function OrgChart({
     activePointers.current.delete(e.pointerId);
     const remaining = activePointers.current.size;
 
-    if (remaining < 2) lastPinchDist.current = null;
+    // Zera sempre, não só quando cai abaixo de 2 dedos: com 3+ dedos na tela,
+    // levantar UM dos dois que estavam fazendo o pinça ainda deixa >=2 dedos
+    // restantes, mas formando um PAR DIFERENTE (ex.: dedo B+C em vez de A+B).
+    // Sem resetar aqui, o próximo cálculo compara a distância do par novo
+    // com a distância base do par antigo — uma proporção sem sentido entre
+    // dois pares de dedos não relacionados — e o zoom "pula". Zerar sempre
+    // faz o próximo processPointerMove só recalcular a base (sem aplicar
+    // proporção), pegando o par atual do zero.
+    lastPinchDist.current = null;
 
     // Tap único / duplo toque
     if (remaining === 0 && !didDrag.current) {
@@ -1227,7 +1290,7 @@ export default function OrgChart({
     const gmColor = levelColors[1];
 
     // Stems: each GG → its touch point on the sector ring
-    const stems = overviewGMs.map((gg) => {
+    const stems = rotatedGMs.map((gg) => {
       const ggAngle = Math.atan2(gg.y, gg.x);
       const sp = {
         x: SPINE_R * Math.cos(ggAngle),
@@ -1257,7 +1320,7 @@ export default function OrgChart({
     // Arcs along the sector ring: from each GG touch point → each sector node.
     // Each arc visually "traverses" the ring to reach the sector.
     const arcs: React.ReactNode[] = [];
-    overviewGMs.forEach((gg) => {
+    rotatedGMs.forEach((gg) => {
       const ggAngle = Math.atan2(gg.y, gg.x);
       const spX = SPINE_R * Math.cos(ggAngle);
       const spY = SPINE_R * Math.sin(ggAngle);
@@ -1287,7 +1350,7 @@ export default function OrgChart({
     });
 
     // Junction dots: where each GM stem meets the ring
-    const gmDots = overviewGMs.map((gg) => {
+    const gmDots = rotatedGMs.map((gg) => {
       const ggAngle = Math.atan2(gg.y, gg.x);
       return (
         <circle
@@ -1721,22 +1784,24 @@ export default function OrgChart({
                 <g key="overview" className={styles.contentGroup}>
                   {/* Orbital intro + alive animation */}
                   {showOrbitalAnimation && renderOrbitalAnimation()}
-                  {/* Dir→GG connections (Bezier) — level < 2 only */}
-                  {renderConnections(
-                    connections.filter((c) => c.level < 2),
-                    overviewPosMap,
-                  )}
+                  {/* Dir→GG connections (Bezier) — level < 2 only. Recalculadas a
+                      partir da posição orbital atual dos GMs (ver rotatedGMConnections)
+                      em vez da lista `connections` estática, senão a linha fica presa
+                      no ângulo original enquanto o card gira. */}
+                  {renderConnections(rotatedGMConnections, overviewPosMap)}
                   {/* GG→Sector arc-spine connections */}
                   {renderArcSpines()}
 
-                  {/* GMs */}
-                  {overviewGMs.map((node) => (
+                  {/* GMs — orbitam lentamente ao redor da Diretoria (rotatedGMs).
+                      Nome completo: poucos cards, bem espaçados, na visão geral. */}
+                  {rotatedGMs.map((node) => (
                     <NodeCard
                       key={node.id}
                       node={node}
                       color={levelColors[node.level] ?? "#fff"}
                       vbW={vb.w}
                       hideText={hideText}
+                      fullName
                     />
                   ))}
 

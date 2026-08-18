@@ -110,7 +110,12 @@ async function loadGeoLibs() {
 }
 
 const ZOOM_MIN  = 0.6;
-const ZOOM_MAX  = 20;
+// 20 não bastava pra separar duas unidades bem próximas (ex.: matriz e filial
+// na mesma região metropolitana, ~50km) — nesse zoom os pinos ficam a poucos
+// px um do outro e o rótulo de um sempre perde a reserva de espaço para o
+// outro (ver overlapsHub). 60 dá px/km suficiente pra afastar os pinos e
+// mostrar os dois rótulos lado a lado.
+const ZOOM_MAX  = 60;
 // Graus de rotação por pixel arrastado, na zoom padrão (1x) — dividido pelo
 // zoom atual (ver uso abaixo), então um zoom maior gira menos por pixel e
 // vice-versa. Reduzido de 0.38: em telas grandes o mesmo gesto físico cobre
@@ -201,9 +206,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
   // em vez de um `createRadialGradient` por ponto/por frame.
   const vitalGlowGradRef  = useRef<CanvasGradient | null>(null);
   const hubPinGlowGradRef = useRef<CanvasGradient | null>(null);
-  // Telas grandes (painéis 4K, ex. quiosque touch de 65") não desenham os anéis
-  // pulsantes dos pontos — o efeito "piscante" fica exagerado/distrativo nessa
-  // escala. Atualizado no resize junto com o buffer do canvas.
+  // Anéis pulsantes dos pontos (Clientes/Unidades) — sempre ligados, inclusive
+  // em painéis 4K grandes (ex. quiosque touch 65"): pedido explícito para o
+  // efeito aparecer nessas telas também. `reduceFxRef` abaixo continua
+  // cortando os efeitos que pesam no frame-rate; este aqui é só o pulso.
   const skipPulseRingsRef = useRef(false);
   // Mesmo gatilho de tela grande, mas para custos de desenho que se somam a
   // cada frame (estrelas, brilhos decorativos) — o draw() completo do globo
@@ -230,10 +236,19 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     // Vital theme: cada ponto renderizado individualmente (sem agrupamento)
     precomputedGroupsRef.current = points.map(p => ({ lat: p.lat, lon: p.lon, ids: [p.id] }));
 
-    // Hub theme: pairwise arc list capped at MAX_HUB_ARCS (was O(n²) every frame)
+    // Hub theme: linhas ligando cada filial à SUA matriz (via matrizId), não
+    // pares arbitrários por índice — a Unidades precisa mostrar a estrutura
+    // societária real (matriz→filial), não uma malha decorativa entre todo mundo.
+    // Cai de volta no pareamento genérico só se nenhum ponto carregar matrizId
+    // (ex.: tema "hub" reaproveitado futuramente sem dado de matriz/filial).
+    const hasMatrizData = points.some((p) => p.matrizId != null);
     const pairs: typeof hubArcsRef.current = [];
-    outer: for (let i = 0; i < points.length; i++) {
-      for (let j = i + 1; j < points.length; j++) {
+    if (hasMatrizData) {
+      const byId = new Map(points.map((p, idx) => [p.id, idx]));
+      for (let j = 0; j < points.length; j++) {
+        const matrizIdx = points[j].matrizId != null ? byId.get(points[j].matrizId!) : undefined;
+        if (matrizIdx == null || matrizIdx === j) continue;
+        const i = matrizIdx;
         pairs.push({
           i, j,
           seed: ((points[i].id * 3 + points[j].id * 7) % 97) * 0.01,
@@ -242,7 +257,21 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
             coordinates: [[points[i].lon, points[i].lat], [points[j].lon, points[j].lat]],
           } as GeoPermissibleObjects,
         });
-        if (pairs.length >= MAX_HUB_ARCS) break outer;
+        if (pairs.length >= MAX_HUB_ARCS) break;
+      }
+    } else {
+      outer: for (let i = 0; i < points.length; i++) {
+        for (let j = i + 1; j < points.length; j++) {
+          pairs.push({
+            i, j,
+            seed: ((points[i].id * 3 + points[j].id * 7) % 97) * 0.01,
+            line: {
+              type: 'LineString' as const,
+              coordinates: [[points[i].lon, points[i].lat], [points[j].lon, points[j].lat]],
+            } as GeoPermissibleObjects,
+          });
+          if (pairs.length >= MAX_HUB_ARCS) break outer;
+        }
       }
     }
     hubArcsRef.current = pairs;
@@ -272,7 +301,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     targetLonRef.current = -focusTarget.lon;
     targetLatRef.current = Math.max(-85, Math.min(85, -focusTarget.lat));
     isResettingRef.current = true;
-    targetZoomRef.current = Math.max(zoomRef.current, 4.8); // bom zoom no local
+    targetZoomRef.current = Math.max(zoomRef.current, 18); // bom zoom no local — separa unidades próximas (ver ZOOM_MAX)
     highlightRef.current = { lat: focusTarget.lat, lon: focusTarget.lon, until: performance.now() + 4200 };
     // Pausa o mapa ao focar uma empresa (clique na lista ou no marcador).
     autoRotateRef.current = false;
@@ -880,9 +909,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       const bulkAlpha = dim ? 0.1 : 1;
 
       if (visGroups.length > 0) {
-        // Step 3a — 3 anéis de pulso escalonados (sem foco). Desativado em
-        // telas ≥ 4K (ex. painel touch 65") — o efeito piscante fica exagerado
-        // nessa escala e o custo por ponto some junto.
+        // Step 3a — 3 anéis de pulso escalonados (sem foco).
         if (!dim && !skipPulseRingsRef.current) {
           for (let ring = 0; ring < 3; ring++) {
             const ph  = ((t * 0.85 + ring * 0.33) % 1);
@@ -1010,7 +1037,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         hubPinGlowGradRef.current = g;
       }
       for (const { sx, sy, fade } of visHub) {
-        // Anéis de pulso — mesmo corte em telas ≥ 4K que o tema "vital" (ver skipPulseRingsRef).
+        // Anéis de pulso — mesma flag do tema "vital" (skipPulseRingsRef).
         if (!skipPulseRingsRef.current) {
           for (let r = 0; r < 3; r++) {
             const ph = ((t * 1.25 + r * 0.42) % 1);
@@ -1051,7 +1078,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       ctx.font = '700 13px "Fira Sans",system-ui,sans-serif';
       // Ordena por fade decrescente in-place (visHub já é um buffer próprio, não
       // precisa copiar): rótulos centrais têm prioridade na reserva de espaço.
-      visHub.sort((a, b) => b.fade - a.fade);
+      // A matriz sempre entra antes das filiais no desempate — sem isso, quando
+      // a matriz e uma filial próxima (ex.: mesma região) disputam o mesmo
+      // espaço na tela, a matriz podia perder a reserva e ficar sem rótulo.
+      visHub.sort((a, b) => (Number(!!b.pt.isMatriz) - Number(!!a.pt.isMatriz)) || (b.fade - a.fade));
       for (const { pt, sx, sy, fade } of visHub) {
         if (fade < 0.3) continue; // perto da borda → só o marcador
         const lw = ctx.measureText(pt.label).width;
@@ -1109,7 +1139,6 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       const physW = window.screen.width  * fullDpr;
       const physH = window.screen.height * fullDpr;
       const isLargeDisplay = Math.max(physW, physH) >= 3840 && Math.min(physW, physH) >= 2160;
-      skipPulseRingsRef.current = isLargeDisplay;
       reduceFxRef.current = isLargeDisplay;
     });
     ro.observe(cv);
