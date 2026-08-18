@@ -152,16 +152,20 @@
   margin-top: 28px;
 }
 
-/* Linha vertical individual — uma por empresa — da espinha até o card. */
+/* Linha vertical individual — uma por empresa — da espinha até o card.
+ * Estende além da borda do item (91px, não só os 28px de margem) pra entrar
+ * no miolo do círculo (CR=75 + borda em CenterCard.tsx) em vez de parar no
+ * vazio antes do primeiro anel visível. */
 .drop {
   position: absolute;
   top: -28px;
   left: 50%;
   transform: translateX(-50%);
   width: 3px;
-  height: 28px;
+  height: 91px;
   background: var(--border-light);
   pointer-events: none;
+  z-index: -1;
 }
 
 .unitLink {
