@@ -221,12 +221,10 @@
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-glass);
   overflow: hidden;
-  transition: transform 0.3s var(--ease-out), border-color 0.3s ease, opacity 0.3s ease;
-  opacity: 0.72;
+  transition: transform 0.3s var(--ease-out), border-color 0.3s ease;
   transform: translateY(4px) scale(0.98);
 }
 .itemActive .card {
-  opacity: 1;
   transform: translateY(0) scale(1);
   border-color: var(--glass-border);
   box-shadow: var(--shadow-lg);
