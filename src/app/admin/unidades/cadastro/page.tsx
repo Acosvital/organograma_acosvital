@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getUnidadesList } from '@/lib/data/unidades';
+import { getOrganogramaCardImages } from '@/lib/data/organogramaCards';
 import UnidadesCadastroAdmin from './UnidadesCadastroAdmin';
 
 export const metadata: Metadata = { title: 'Unidades — Açosvital' };
@@ -10,6 +11,7 @@ export default async function AdminUnidadesCadastroPage() {
   try {
     unidades = await getUnidadesList();
   } catch {}
+  const cardImages = await getOrganogramaCardImages();
 
-  return <UnidadesCadastroAdmin initialUnidades={unidades} />;
+  return <UnidadesCadastroAdmin initialUnidades={unidades} initialCardImages={cardImages} />;
 }

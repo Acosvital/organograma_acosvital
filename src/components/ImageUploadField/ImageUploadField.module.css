@@ -81,6 +81,8 @@
 .editorOverlay {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  /* var(--z-modal) em vez de um número fixo acima do --z-toast: um toast
+     disparado enquanto o editor está aberto precisa aparecer por cima dele. */
+  z-index: var(--z-modal, 100);
   background: rgba(0, 0, 0, 0.6);
 }

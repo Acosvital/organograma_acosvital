@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
-import { apiPut, handleApiError, API_CACHE_TAG } from '@/lib/apiClient';
+import { apiPut, handleApiError, HISTORIA_CACHE_TAG } from '@/lib/apiClient';
 import { toVideoEmbedUrl } from '@/lib/videoEmbed';
 import { guard } from '@/lib/routeGuard';
 import { parseJsonBody } from '@/lib/validation';
@@ -68,7 +68,7 @@ export async function PUT(request: NextRequest) {
       imagens,
       timeline,
     });
-    revalidateTag(API_CACHE_TAG, 'max');
+    revalidateTag(HISTORIA_CACHE_TAG, 'max');
     return NextResponse.json(toHistoriaContent(unwrap(raw)));
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Não foi possível salvar as alterações.');

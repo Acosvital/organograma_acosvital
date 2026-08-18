@@ -25,6 +25,12 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
   const [backgroundImageUrl, setBackgroundImageUrl] = useState(initialHistoria?.backgroundImageUrl ?? '');
   const [timeline,           setTimeline]           = useState<HistoriaTimelineItem[]>(initialHistoria?.timeline ?? []);
   const [saving,   setSaving]   = useState(false);
+  // Vários ImageUploadField (fundo + um por marco da timeline) podem estar
+  // enviando ao mesmo tempo — conta quantos estão em voo em vez de um booleano
+  // único, para não destravar o Salvar enquanto qualquer um ainda está subindo.
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const handleUploadingChange = (uploading: boolean) =>
+    setUploadingCount(c => Math.max(0, c + (uploading ? 1 : -1)));
   const [toast,    setToast]    = useState<{ msg: string; err: boolean } | null>(
     initialHistoria ? null : { msg: 'Não foi possível carregar o conteúdo.', err: true },
   );
@@ -144,6 +150,7 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
                 label="Imagem de fundo"
                 value={backgroundImageUrl}
                 onChange={setBackgroundImageUrl}
+                onUploadingChange={handleUploadingChange}
                 uploadEndpoint={HISTORIA_UPLOAD_ENDPOINT}
                 recommendedSize={{ width: 1920, height: 1080 }}
                 hint="Aparece por trás do texto na tela pública, com um gradiente escuro por cima para manter a leitura. Deixe em branco para usar só o fundo padrão."
@@ -183,6 +190,7 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
                       <ImageUploadField
                         value={item.imagemUrl ?? ''}
                         onChange={url => updateTimelineItem(item.id, { imagemUrl: url || null })}
+                        onUploadingChange={handleUploadingChange}
                         uploadEndpoint={HISTORIA_UPLOAD_ENDPOINT}
                         aspectRatio={16 / 9}
                         recommendedSize={{ width: 800, height: 450 }}
@@ -215,8 +223,8 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
       </div>
 
       <div className={styles.formFoot} style={{ maxWidth: 720, width: '100%', margin: '0 auto' }}>
-        <button className={styles.btnPrimary} disabled={saving} onClick={handleSave}>
-          {saving ? 'Salvando…' : 'Salvar alterações'}
+        <button className={styles.btnPrimary} disabled={saving || uploadingCount > 0} onClick={handleSave}>
+          {saving ? 'Salvando…' : uploadingCount > 0 ? 'Enviando imagem…' : 'Salvar alterações'}
         </button>
       </div>
 
