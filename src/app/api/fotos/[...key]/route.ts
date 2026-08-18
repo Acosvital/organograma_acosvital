@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { guard } from '@/lib/routeGuard';
-import { s3, PESSOAS_BUCKET } from '@/lib/s3Client';
+import { s3, PESSOAS_BUCKET, isValidUploadKey } from '@/lib/s3Client';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +16,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { key } = await params;
   const objectKey = key.join('/');
 
+  // Só o formato exato gerado pelo upload é aceito — barra a tentativa de path
+  // traversal (ex.: segmentos '..' vindos de barras codificadas no catch-all)
+  // sem depender de normalização de URL, que não cobre esse caso.
+  if (!isValidUploadKey(objectKey)) {
+    return NextResponse.json({ error: 'Foto não encontrada.' }, { status: 404 });
+  }
+
   try {
     const obj = await s3.send(new GetObjectCommand({ Bucket: PESSOAS_BUCKET, Key: objectKey }));
     const body = obj.Body?.transformToWebStream();
@@ -27,7 +34,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         'Cache-Control': 'private, max-age=3600',
       },
     });
-  } catch {
-    return NextResponse.json({ error: 'Foto não encontrada.' }, { status: 404 });
+  } catch (err) {
+    const code = (err as { name?: string })?.name;
+    if (code === 'NoSuchKey' || code === 'NotFound') {
+      return NextResponse.json({ error: 'Foto não encontrada.' }, { status: 404 });
+    }
+    console.error('[fotos] falha ao buscar objeto do S3:', err);
+    return NextResponse.json({ error: 'Erro ao buscar a foto.' }, { status: 502 });
   }
 }
