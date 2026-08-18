@@ -1783,7 +1783,8 @@ export default function OrgChart({
                   {/* GG→Sector arc-spine connections */}
                   {renderArcSpines()}
 
-                  {/* GMs — orbitam lentamente ao redor da Diretoria (rotatedGMs) */}
+                  {/* GMs — orbitam lentamente ao redor da Diretoria (rotatedGMs).
+                      Nome completo: poucos cards, bem espaçados, na visão geral. */}
                   {rotatedGMs.map((node) => (
                     <NodeCard
                       key={node.id}
@@ -1791,6 +1792,7 @@ export default function OrgChart({
                       color={levelColors[node.level] ?? "#fff"}
                       vbW={vb.w}
                       hideText={hideText}
+                      fullName
                     />
                   ))}
 
