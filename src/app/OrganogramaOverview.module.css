@@ -101,7 +101,7 @@
   width: 100%;
   flex-shrink: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: safe center;
   overflow-x: auto;
   overflow-y: hidden;
@@ -120,17 +120,48 @@
 .row::-webkit-scrollbar { display: none; }
 .row:active { cursor: grabbing; }
 
+/* Trilho interno: fica dentro da área de scroll (acompanha o arraste) e
+ * serve de referência de posição para a espinha e os "drops" — como todo
+ * card de unidade tem a mesma largura (SIZE=280px), left/right em px bastam
+ * pra espinha alcançar exatamente o centro do primeiro e do último card,
+ * sem precisar medir nada em JS. */
+.track {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 64px;
+}
+
+/* Espinha: uma linha horizontal única, do centro do 1º ao centro do último
+ * card — cada empresa puxa seu próprio "drop" vertical dela até o seu card. */
+.spine {
+  position: absolute;
+  top: 0;
+  left: 140px;
+  right: 140px;
+  height: 3px;
+  background: var(--border-light);
+}
+
 .item {
+  position: relative;
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  /* Espaço no topo pro "drop" (linha vertical) que liga este card à espinha. */
+  margin-top: 28px;
 }
 
-.connector {
-  width: 44px;
-  height: 3px;
+/* Linha vertical individual — uma por empresa — da espinha até o card. */
+.drop {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 28px;
   background: var(--border-light);
-  flex-shrink: 0;
+  pointer-events: none;
 }
 
 .unitLink {

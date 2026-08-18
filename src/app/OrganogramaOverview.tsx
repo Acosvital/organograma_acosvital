@@ -181,7 +181,8 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
           </svg>
         )}
 
-        {/* Fileira arrastável — matriz + filiais, uma unidade leva à outra */}
+        {/* Fileira arrastável — matriz + filiais, cada uma com sua própria linha
+         * descendo da espinha horizontal (uma linha por empresa). */}
         <div
           ref={scrollRef}
           className={styles.row}
@@ -192,16 +193,21 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
           onPointerCancel={endDrag}
           onClickCapture={onRowClickCapture}
         >
-          {unidadesComGerentes.map(({ unidade, node }, i) => (
-            <div key={unidade.id} className={styles.item}>
-              {i > 0 && <div className={styles.connector} />}
-              <Link href={`/organograma/${unidade.id}`} className={styles.unitLink} draggable={false}>
-                {node
-                  ? <CircleSvg node={node} color={levelColors[1]} />
-                  : <PlaceholderCircle label={unidade.nome_fantasia} />}
-              </Link>
+          {unidadesComGerentes.length > 0 && (
+            <div className={styles.track}>
+              {unidadesComGerentes.length > 1 && <div className={styles.spine} />}
+              {unidadesComGerentes.map(({ unidade, node }) => (
+                <div key={unidade.id} className={styles.item}>
+                  <div className={styles.drop} />
+                  <Link href={`/organograma/${unidade.id}`} className={styles.unitLink} draggable={false}>
+                    {node
+                      ? <CircleSvg node={node} color={levelColors[1]} />
+                      : <PlaceholderCircle label={unidade.nome_fantasia} />}
+                  </Link>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
 
           {!error && unidadesComGerentes.length === 0 && (
             <p className={styles.status}>Nenhuma unidade cadastrada ainda.</p>
