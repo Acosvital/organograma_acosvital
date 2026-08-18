@@ -56,18 +56,22 @@
   padding-left: 4px;
 }
 
-/* ── Palco: diretores fixos + conector + fileira arrastável ────────────── */
+/* ── Palco: diretoria centralizada no topo + conector + fileira arrastável ──
+ * Empilhados na vertical (não mais lado a lado) — a diretoria fica no centro,
+ * com um tronco descendo até a fileira de matriz/filiais logo abaixo. */
 .stage {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 56px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
 .directorsZone {
-  align-self: flex-start;
   flex-shrink: 0;
   display: flex;
   justify-content: center;
@@ -84,18 +88,21 @@
   height: 100%;
   pointer-events: none;
   overflow: visible;
-  opacity: 0.5;
+  opacity: 0.9;
 }
 
 /* ── Fileira horizontal arrastável ───────────────────────────────────────
  * Diretores nunca entram aqui — permanecem fora da área de scroll, sempre
- * visíveis, satisfazendo o requisito de ficarem "no centro" do organograma. */
+ * visíveis, satisfazendo o requisito de ficarem "no centro" do organograma.
+ * width:100% + justify-content centraliza os cards quando cabem todos; se a
+ * lista crescer além da largura disponível, "safe center" evita o problema
+ * clássico de flexbox+overflow onde não dá pra rolar até o primeiro item. */
 .row {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
+  width: 100%;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
+  justify-content: safe center;
   overflow-x: auto;
   overflow-y: hidden;
   cursor: grab;
@@ -121,8 +128,8 @@
 
 .connector {
   width: 44px;
-  height: 2px;
-  background: var(--border-subtle);
+  height: 3px;
+  background: var(--border-light);
   flex-shrink: 0;
 }
 
