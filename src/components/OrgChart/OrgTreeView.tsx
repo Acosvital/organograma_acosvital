@@ -1,8 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { OrgNode } from '@/types/orgChart';
 import Avatar from '@/components/ui/Avatar';
+import { useIsTouchDevice } from '@/lib/hooks/useIsTouchDevice';
+import OnScreenKeyboard from '@/components/OnScreenKeyboard/OnScreenKeyboard';
 import styles from './OrgTreeView.module.css';
 
 interface Props {
@@ -21,6 +23,9 @@ function nodeColor(node: OrgNode, levelColors: Record<number, string>): string {
 export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }: Props) {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const isTouch = useIsTouchDevice();
+  const [kbOpen, setKbOpen] = useState(false);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
 
   // Filhos indexados por parentId, preservando a ordem de chegada.
   const childrenOf = useMemo(() => {
@@ -42,6 +47,18 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
       .filter((n) => `${n.name} ${n.role}`.toLowerCase().includes(q))
       .slice(0, 200);
   }, [query, nodes]);
+
+  // Fecha o teclado virtual ao tocar fora dele — mesmo padrão de OrgChart.tsx.
+  useEffect(() => {
+    if (!isTouch || !kbOpen) return;
+    const onPointerDownOutside = (e: PointerEvent) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) {
+        setKbOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDownOutside);
+    return () => document.removeEventListener('pointerdown', onPointerDownOutside);
+  }, [isTouch, kbOpen]);
 
   const toggle = (id: string) =>
     setCollapsed((prev) => {
@@ -90,7 +107,7 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
 
   return (
     <div className={styles.panel}>
-      <div className={styles.searchWrap}>
+      <div className={styles.searchWrap} ref={searchWrapRef}>
         <svg className={styles.searchIcon} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
           <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
         </svg>
@@ -98,11 +115,21 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
           className={styles.search}
           placeholder="Buscar pessoa, cargo ou setor…"
           value={query}
+          inputMode={isTouch ? 'none' : undefined}
           onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setKbOpen(true)}
           autoFocus
         />
         {query && (
           <button type="button" className={styles.clear} onClick={() => setQuery('')} aria-label="Limpar busca">×</button>
+        )}
+        {isTouch && kbOpen && (
+          <OnScreenKeyboard
+            value={query}
+            onChange={setQuery}
+            onEnter={() => { if (matches?.[0]) onSelect(matches[0]); }}
+            onClose={() => setKbOpen(false)}
+          />
         )}
       </div>
 

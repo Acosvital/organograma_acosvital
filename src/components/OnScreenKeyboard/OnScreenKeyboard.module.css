@@ -1,0 +1,84 @@
+/* Overlay fixo ancorado embaixo da tela — largura própria (não tenta caber
+ * nos 260px da caixa de busca, estreita demais para um teclado usável num
+ * painel touch grande). */
+.overlay {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 200;
+  width: min(90vw, 640px);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.closeBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.closeBtn:hover { background: var(--accent-bg); color: var(--text-primary); }
+
+/* Sobrescreve o tema padrão da lib (react-simple-keyboard) com os tokens do
+ * app — as classes hg-* não são CSS Modules, por isso :global() aqui em vez
+ * de mexer num CSS global do projeto. Teclas em ~48px: o padrão da lib é
+ * pequeno demais para toque num painel grande. */
+.overlay :global(.simple-keyboard) {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  touch-action: manipulation;
+}
+.overlay :global(.hg-row) {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.overlay :global(.hg-row:last-child) { margin-bottom: 0; }
+.overlay :global(.hg-button) {
+  height: 48px;
+  min-width: 40px;
+  flex-grow: 1;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-size: 15px;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.overlay :global(.hg-button.hg-functionBtn) {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.overlay :global(.hg-button:active),
+.overlay :global(.hg-button.hg-activeButton) {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
