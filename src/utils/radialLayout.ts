@@ -363,29 +363,35 @@ export function calculateEvenSectorLayout(
     });
   }
 
-  // ── Compressed depth→ring mapping ──
-  // Usa a profundidade REAL na árvore (contando saltos de parentId a partir
-  // do setor), não o campo `level` bruto do funcionário. Se o `level`
-  // cadastrado não é incrementado corretamente de pai pra filho (ex.: um
-  // "Aprendiz" salvo com o mesmo level do seu próprio superior "Auxiliar"),
-  // basear o anel no `level` os empilha no MESMO anel — a profundidade da
-  // árvore nunca falha assim, um filho está sempre um anel além do pai.
-  const depthOf = new Map<string, number>([[sectorId, 0]]);
-  function collectDepths(id: string) {
-    const d = depthOf.get(id) ?? 0;
+  // ── Compressed effective-level→ring mapping ──
+  // `effLevel` combina profundidade real na árvore com o campo `level` bruto:
+  // effLevel(filho) = max(level bruto do filho, effLevel(pai) + 1).
+  // Isso corrige dois problemas de dado ao mesmo tempo:
+  //  • level não incrementado de pai pra filho (ex.: "Aprendiz" salvo com o
+  //    mesmo level do próprio superior "Auxiliar") — o piso `effLevel(pai)+1`
+  //    garante que o filho nunca cai no mesmo anel do pai, mesmo com level
+  //    igual ou menor no cadastro.
+  //  • irmãos "achatados" direto no setor com levels bem diferentes (ex.:
+  //    Gerente de Marketing nível 5 e Auxiliar de Marketing nível 11, ambos
+  //    com parentId = setor, sem relação de pai/filho entre si) — usar só a
+  //    profundidade da árvore os empilharia no mesmo anel; usar o level
+  //    bruto como base preserva a diferença de hierarquia entre eles.
+  const effLevelOf = new Map<string, number>([[sectorId, 0]]);
+  function collectEffLevels(id: string) {
+    const parentEff = effLevelOf.get(id) ?? 0;
     for (const c of childrenOf.get(id) ?? []) {
       if (hiddenIds.has(c.id)) continue;
-      depthOf.set(c.id, d + 1);
-      collectDepths(c.id);
+      effLevelOf.set(c.id, Math.max(c.level, parentEff + 1));
+      collectEffLevels(c.id);
     }
   }
-  collectDepths(sectorId);
+  collectEffLevels(sectorId);
 
   const presentLevels = new Set<number>();
   function collectLevels(id: string) {
     for (const c of childrenOf.get(id) ?? []) {
       if (hiddenIds.has(c.id)) continue;
-      if (!c.isSector) presentLevels.add(depthOf.get(c.id)!);
+      if (!c.isSector) presentLevels.add(effLevelOf.get(c.id)!);
       collectLevels(c.id);
     }
   }
@@ -399,7 +405,7 @@ export function calculateEvenSectorLayout(
       return [lvl, ring];
     }),
   );
-  const getRing = (n: OrgNode) => n.isSector ? (subSectorRing ?? 1) : (levelToRing.get(depthOf.get(n.id) ?? 0) ?? 1);
+  const getRing = (n: OrgNode) => n.isSector ? (subSectorRing ?? 1) : (levelToRing.get(effLevelOf.get(n.id) ?? 0) ?? 1);
 
   // ── Collect visible nodes per ring in DFS order ──
   const ringCollect = new Map<number, OrgNode[]>();
