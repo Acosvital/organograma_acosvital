@@ -9,7 +9,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle';
 import styles from './Sidebar.module.css';
 
 const ICON_LOGO_URL =
-  'https://iaczridaljcdtnthoece.supabase.co/storage/v1/object/public/public-assets/geral/logo/logo_icone_apenas.png';
+  'https://s3.acosvital.com.br/organograma-prd-empresa/geral/logo/logo_icone_apenas.png';
 
 // ── Ícones ────────────────────────────────────────────────────────────────
 function IconOrg() {
