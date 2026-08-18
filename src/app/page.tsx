@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/apiAuth';
 import { getUnidadesList } from '@/lib/data/unidades';
 import { getFuncionariosEnriched } from '@/lib/data/adminFuncionarios';
 import { getOrgNodes } from '@/lib/data/org';
-import { getOrganogramaCardImages } from '@/lib/data/organogramaCards';
+import { getOrganogramaCardConfigs } from '@/lib/data/organogramaCards';
 import { mergeDirectors } from '@/utils/mergeDirectors';
 import type { Unidade } from '@/types/adminCore';
 import type { PositionedNode } from '@/types/orgChart';
@@ -74,7 +74,7 @@ export default async function Home() {
 
   // Independente da API externa (Acosvital) — mora no S3/SeaweedFS, então
   // continua funcionando mesmo se a API de organograma estiver fora do ar.
-  const cardImages = await getOrganogramaCardImages();
+  const cardConfigs = await getOrganogramaCardConfigs();
 
   let unidades: Unidade[] = [];
   let funcionarios: EnrichedFuncionario[] = [];
@@ -105,8 +105,9 @@ export default async function Home() {
       unidade.id,
       unidade.nome_fantasia,
       funcionarios.filter(f => f.codigo_empresa === unidade.id && f.cargo_nvl === 1),
-      cardImages[unidade.id],
+      cardConfigs[unidade.id]?.imageUrl ?? undefined,
     ),
+    cardColor: cardConfigs[unidade.id]?.color ?? null,
   }));
 
   return (

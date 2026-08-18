@@ -5,6 +5,8 @@ import CenterCard from "@/components/CenterCard/CenterCard";
 import NodeCard from "@/components/NodeCard/NodeCard";
 import SectorCard from "@/components/SectorCard/SectorCard";
 import { useFsMode } from "@/lib/fsContext";
+import { useIsTouchDevice } from "@/lib/hooks/useIsTouchDevice";
+import OnScreenKeyboard from "@/components/OnScreenKeyboard/OnScreenKeyboard";
 import { Connection, OrgNode, PositionedNode } from "@/types/orgChart";
 import {
   OVERVIEW_NODE_RADIUS,
@@ -125,6 +127,8 @@ export default function OrgChart({
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [flyTarget, setFlyTarget] = useState<string | null>(null);
   const [showOrbitalAnimation, setShowOrbitalAnimation] = useState(true);
+  const isTouch = useIsTouchDevice();
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   const minW = activeSectorId ? MIN_W_SC : MIN_W_OV;
   const maxW = activeSectorId ? MAX_W_SC : MAX_W_OV;
@@ -452,6 +456,21 @@ export default function OrgChart({
     },
     [nearestSectorId],
   );
+
+  // Fecha a busca ao tocar fora dela — em touch o teclado virtual (OnScreenKeyboard)
+  // é um overlay fixo próprio; tocar nos botões dele não deve fechar a busca (por
+  // isso não usa o onBlur do input, que dispararia antes do toque na tecla ser
+  // processado). O onBlur normal (com timeout) continua valendo fora do touch.
+  useEffect(() => {
+    if (!isTouch || !searchOpen) return;
+    const onPointerDownOutside = (e: PointerEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDownOutside);
+    return () => document.removeEventListener("pointerdown", onPointerDownOutside);
+  }, [isTouch, searchOpen]);
 
   // Centraliza e destaca o alvo assim que o layout dele estiver disponível.
   useEffect(() => {
@@ -1438,7 +1457,7 @@ export default function OrgChart({
         </div>
 
         {viewMode === "radial" && (
-          <div className={styles.searchBox}>
+          <div className={styles.searchBox} ref={searchBoxRef}>
             <svg
               className={styles.searchIcon}
               width="15"
@@ -1456,12 +1475,13 @@ export default function OrgChart({
               className={styles.searchInput}
               placeholder="Buscar pessoa ou setor…"
               value={query}
+              inputMode={isTouch ? "none" : undefined}
               onChange={(e) => {
                 setQuery(e.target.value);
                 setSearchOpen(true);
               }}
               onFocus={() => setSearchOpen(true)}
-              onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+              onBlur={isTouch ? undefined : () => setTimeout(() => setSearchOpen(false), 150)}
             />
             {query && (
               <button
@@ -1506,6 +1526,14 @@ export default function OrgChart({
                   </li>
                 ))}
               </ul>
+            )}
+            {isTouch && searchOpen && (
+              <OnScreenKeyboard
+                value={query}
+                onChange={(v) => { setQuery(v); setSearchOpen(true); }}
+                onEnter={() => { if (searchResults[0]) flyTo(searchResults[0]); }}
+                onClose={() => setSearchOpen(false)}
+              />
             )}
           </div>
         )}
