@@ -40,6 +40,14 @@ const nextConfig: NextConfig = {
   ...(devOrigins.length > 0 ? { allowedDevOrigins: devOrigins } : {}),
   turbopack: {
     root: process.cwd(),
+    // konva (via react-filerobot-image-editor, usado só no navegador com
+    // ssr:false) faz require('canvas') incondicional ao ser avaliado — canvas
+    // é dependência nativa opcional que não instalamos. O Turbopack tenta
+    // resolver esse require estaticamente mesmo no branch nunca executado no
+    // servidor, quebrando a build inteira; redireciona para um stub vazio.
+    resolveAlias: {
+      canvas: './src/stubs/emptyModule.js',
+    },
   },
   async headers() {
     return [
