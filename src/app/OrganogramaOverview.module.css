@@ -103,22 +103,14 @@
   display: flex;
   align-items: flex-start;
   justify-content: safe center;
+  /* Não é mais arrastável (nem mouse nem toque) — só rolagem por scrollbar/wheel
+   * se um dia sobrar gente demais pra caber na largura disponível. */
   overflow-x: auto;
   overflow-y: hidden;
-  cursor: grab;
-  /* pan-x: deixa o dedo rolar horizontalmente com inércia nativa e bloqueia
-   * pinch-zoom/scroll vertical acidental durante o arraste. */
-  touch-action: pan-x;
-  /* Evita que arrastar até a borda dispare o gesto de "voltar página" do
-   * navegador (comum em Chrome/Edge com touch e trackpad). */
-  overscroll-behavior-x: contain;
-  user-select: none;
-  -webkit-user-select: none;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 .row::-webkit-scrollbar { display: none; }
-.row:active { cursor: grabbing; }
 
 /* Trilho interno: fica dentro da área de scroll (acompanha o arraste) e
  * serve de referência de posição para a espinha e os "drops" — como todo

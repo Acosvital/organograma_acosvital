@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useState, useLayoutEffect } from 'react';
+import { useRef, useState, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import CenterCard from '@/components/CenterCard/CenterCard';
 import SpaceBackground from '@/components/Globe/SpaceBackground';
@@ -104,60 +104,13 @@ function useTrunkPath(stageRef: React.RefObject<HTMLDivElement | null>, director
   return path;
 }
 
-/** Distância (px) que o ponteiro precisa se mover para contar como arraste — abaixo
- *  disso, o gesto é tratado como clique normal e a navegação do link é permitida. */
-const DRAG_THRESHOLD = 6;
-
 export default function OrganogramaOverview({ directorsNode, unidadesComGerentes, error = false }: Props) {
   const stageRef     = useRef<HTMLDivElement>(null);
   const directorsRef = useRef<HTMLDivElement>(null);
   const scrollRef    = useRef<HTMLDivElement>(null);
-  const dragRef      = useRef<{ startX: number; startScroll: number; dragging: boolean; moved: boolean; pointerId: number } | null>(null);
 
   const trunkPath = useTrunkPath(stageRef, directorsRef, scrollRef);
   const fsMode = useFsMode();
-
-  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const el = scrollRef.current;
-    if (!el || e.button !== 0) return;
-    // Touch/caneta: deixa o scroll nativo (touch-action: pan-x) cuidar do gesto —
-    // já vem com inércia e cancela o clique sozinho quando é um arraste de verdade.
-    // Rodar nossa simulação de arraste também nesses casos faz o scroll "brigar"
-    // consigo mesmo (dobra o movimento, trava, pula) — por isso só entra pro mouse.
-    if (e.pointerType !== 'mouse') return;
-    // Não captura o ponteiro aqui — capturar cedo demais faz o navegador nunca
-    // disparar o "click" nativo no link da unidade, quebrando a navegação por clique.
-    dragRef.current = { startX: e.clientX, startScroll: el.scrollLeft, dragging: true, moved: false, pointerId: e.pointerId };
-  }, []);
-
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const el = scrollRef.current;
-    const st = dragRef.current;
-    if (!el || !st?.dragging) return;
-    const dx = e.clientX - st.startX;
-    if (!st.moved && Math.abs(dx) > DRAG_THRESHOLD) {
-      st.moved = true;
-      // Só captura o ponteiro quando um arraste de verdade começa — assim o
-      // scroll continua acompanhando o mouse mesmo se ele sair da fileira.
-      el.setPointerCapture(st.pointerId);
-    }
-    if (st.moved) {
-      e.preventDefault();
-      el.scrollLeft = st.startScroll - dx;
-    }
-  }, []);
-
-  const endDrag = useCallback(() => {
-    if (dragRef.current) dragRef.current.dragging = false;
-  }, []);
-
-  // Evita que soltar o ponteiro após um arraste dispare a navegação do link da unidade.
-  const onRowClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (dragRef.current?.moved) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }, []);
 
   return (
     <div className={styles.page}>
@@ -183,18 +136,9 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
           </svg>
         )}
 
-        {/* Fileira arrastável — matriz + filiais, cada uma com sua própria linha
-         * descendo da espinha horizontal (uma linha por empresa). */}
-        <div
-          ref={scrollRef}
-          className={styles.row}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endDrag}
-          onPointerLeave={endDrag}
-          onPointerCancel={endDrag}
-          onClickCapture={onRowClickCapture}
-        >
+        {/* Fileira de matriz + filiais, cada uma com sua própria linha descendo
+         * da espinha horizontal (uma linha por empresa). */}
+        <div ref={scrollRef} className={styles.row}>
           {unidadesComGerentes.length > 0 && (
             <div className={styles.track}>
               {unidadesComGerentes.length > 1 && <div className={styles.spine} />}

@@ -24,10 +24,9 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-function getShortName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length <= 1) return parts[0] ?? '';
-  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+/** Primeiro e segundo nome — nome completo por extenso não cabe no card. */
+function getTwoWordName(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).join(' ');
 }
 
 /** Só quebra em 2 linhas quando o nome é literalmente "Fulano e/& Beltrano"
@@ -51,7 +50,6 @@ export default function CenterCard({ node, color, hideText = false }: Props) {
     const photo2 = node.photoUrl2 ?? null;
     const name1  = nameParts[0]?.trim() ?? node.name;
     const name2  = nameParts[1]?.trim() ?? '';
-    const label  = `${getShortName(name1)} & ${getShortName(name2)}`;
 
     return (
       <g className={styles.group} {...({ title: `${node.name} — ${node.role}` } as { title?: string })}>
@@ -126,8 +124,10 @@ export default function CenterCard({ node, color, hideText = false }: Props) {
             <text x={0} y={CR + 20} textAnchor="middle" fill={color} fontSize={9} fontWeight="700" letterSpacing="2" fontFamily={FONT} opacity={0.9}>
               {node.role.toUpperCase()}
             </text>
+            {/* Os dois nomes lado a lado numa linha só — com só primeiro +
+                segundo nome de cada um, cabe sem precisar quebrar em 2 linhas. */}
             <text x={0} y={CR + 38} textAnchor="middle" style={{ fill: 'var(--text-primary)' }} fontSize={11} fontWeight="700" fontFamily={FONT}>
-              {label}
+              {`${getTwoWordName(name1)} & ${getTwoWordName(name2)}`}
             </text>
           </>
         )}
@@ -190,11 +190,11 @@ export default function CenterCard({ node, color, hideText = false }: Props) {
             {node.role.toUpperCase()}
           </text>
           <text x={0} y={CR + 38} textAnchor="middle" style={{ fill: 'var(--text-primary)' }} fontSize={12} fontWeight="700" fontFamily={FONT}>
-            {nameLine1}
+            {getTwoWordName(nameLine1)}
           </text>
           {nameLine2 && (
             <text x={0} y={CR + 54} textAnchor="middle" style={{ fill: 'var(--text-primary)' }} fontSize={12} fontWeight="700" fontFamily={FONT}>
-              {nameLine2}
+              {getTwoWordName(nameLine2)}
             </text>
           )}
         </>
