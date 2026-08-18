@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiPost, handleApiError } from '@/lib/apiClient';
+import { revalidateTag } from 'next/cache';
+import { apiPost, handleApiError, API_CACHE_TAG } from '@/lib/apiClient';
 import { guard } from '@/lib/routeGuard';
 import { parseJsonBody } from '@/lib/validation';
 import { getUnidadesList } from '@/lib/data/unidades';
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
       ordem_exibicao: b.ordem_exibicao != null && b.ordem_exibicao !== '' ? Number(b.ordem_exibicao) : null,
       id_origem:     b.id_origem     ?? null,
     });
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json(data, { status: 201 });
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao criar unidade.');

@@ -735,6 +735,11 @@
   border-radius: var(--radius-md);
   overflow: hidden;
   transition: border-color .15s;
+  /* Sem isso, quando o conteúdo do drawer não cabe na tela o flexbox encolhe
+     as seções (flex-shrink é 1 por padrão) em vez de deixar o .drawerBody
+     rolar — e como overflow aqui é hidden, os últimos campos somem sem aviso
+     em vez de aparecerem com scroll. */
+  flex-shrink: 0;
 }
 .section:focus-within { border-color: var(--border-light); }
 

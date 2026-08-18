@@ -5,6 +5,7 @@ import Link from 'next/link';
 import CenterCard from '@/components/CenterCard/CenterCard';
 import SpaceBackground from '@/components/Globe/SpaceBackground';
 import { levelColors } from '@/data/orgData';
+import { useFsMode } from '@/lib/fsContext';
 import type { PositionedNode } from '@/types/orgChart';
 import type { Unidade } from '@/types/adminCore';
 import styles from './OrganogramaOverview.module.css';
@@ -62,8 +63,10 @@ function PlaceholderCircle({ label, width = SIZE, height = SIZE, cx = CENTER, cy
   );
 }
 
-/** Ponto (relativo ao palco) de onde a linha conectora deve sair do card da diretoria. */
-function useElbowPath(stageRef: React.RefObject<HTMLDivElement | null>, directorsRef: React.RefObject<HTMLDivElement | null>, rowRef: React.RefObject<HTMLDivElement | null>) {
+/** Tronco vertical que desce do centro do card da diretoria até o topo da
+ *  fileira de matriz/filiais — pequeno jog horizontal só se os centros não
+ *  coincidirem exatamente (ex.: diretoria mais estreita que a fileira). */
+function useTrunkPath(stageRef: React.RefObject<HTMLDivElement | null>, directorsRef: React.RefObject<HTMLDivElement | null>, rowRef: React.RefObject<HTMLDivElement | null>) {
   const [path, setPath] = useState<string | null>(null);
 
   useLayoutEffect(() => {
@@ -77,14 +80,14 @@ function useElbowPath(stageRef: React.RefObject<HTMLDivElement | null>, director
 
       const x1 = directorsBox.left - stageBox.left + DIRECTOR_CX;
       const y1 = directorsBox.top  - stageBox.top  + DIRECTOR_CY + 75 * DIRECTOR_SCALE + 14; // borda inferior do círculo
-      const x2 = rowBox.left - stageBox.left;
-      const y2 = rowBox.top  - stageBox.top + rowBox.height / 2;
+      const x2 = rowBox.left - stageBox.left + rowBox.width / 2;
+      const y2 = rowBox.top  - stageBox.top;
       const bend = Math.min(28, Math.abs(y2 - y1) / 2 || 1);
 
       setPath(
-        y2 >= y1
-          ? `M ${x1} ${y1} L ${x1} ${y2 - bend} Q ${x1} ${y2} ${x1 + bend} ${y2} L ${x2} ${y2}`
-          : `M ${x1} ${y1} L ${x1} ${y2 + bend} Q ${x1} ${y2} ${x1 + bend} ${y2} L ${x2} ${y2}`,
+        Math.abs(x2 - x1) < 1
+          ? `M ${x1} ${y1} L ${x2} ${y2}` // centros coincidem: linha reta
+          : `M ${x1} ${y1} L ${x1} ${y2 - bend} Q ${x1} ${y2} ${x1 + Math.sign(x2 - x1) * bend} ${y2} L ${x2} ${y2}`,
       );
     };
 
@@ -109,7 +112,8 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
   const scrollRef    = useRef<HTMLDivElement>(null);
   const dragRef      = useRef<{ startX: number; startScroll: number; dragging: boolean; moved: boolean; pointerId: number } | null>(null);
 
-  const elbowPath = useElbowPath(stageRef, directorsRef, scrollRef);
+  const trunkPath = useTrunkPath(stageRef, directorsRef, scrollRef);
+  const fsMode = useFsMode();
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const el = scrollRef.current;
@@ -157,7 +161,7 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
     <div className={styles.page}>
       <SpaceBackground />
 
-      <div className={styles.content}>
+      <div className={`${styles.content} ${fsMode !== 'none' ? styles.shifted : ''}`}>
       <p className={styles.prompt}>Organograma — visão geral</p>
 
       {error && <p className={styles.status}>Não foi possível carregar os dados.</p>}
@@ -170,14 +174,15 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
             : <PlaceholderCircle label="Diretoria" width={DIRECTOR_W} height={DIRECTOR_H} cx={DIRECTOR_CX} cy={DIRECTOR_CY} scale={DIRECTOR_SCALE} />}
         </div>
 
-        {/* Conector: desce do card da diretoria e vira à direita, entrando na fileira */}
-        {elbowPath && (
+        {/* Conector: tronco descendo do card da diretoria até a fileira abaixo */}
+        {trunkPath && (
           <svg className={styles.elbowOverlay}>
-            <path d={elbowPath} fill="none" stroke="var(--border-subtle)" strokeWidth={2} />
+            <path d={trunkPath} fill="none" stroke="var(--border-light)" strokeWidth={3} />
           </svg>
         )}
 
-        {/* Fileira arrastável — matriz + filiais, uma unidade leva à outra */}
+        {/* Fileira arrastável — matriz + filiais, cada uma com sua própria linha
+         * descendo da espinha horizontal (uma linha por empresa). */}
         <div
           ref={scrollRef}
           className={styles.row}
@@ -188,16 +193,21 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
           onPointerCancel={endDrag}
           onClickCapture={onRowClickCapture}
         >
-          {unidadesComGerentes.map(({ unidade, node }, i) => (
-            <div key={unidade.id} className={styles.item}>
-              {i > 0 && <div className={styles.connector} />}
-              <Link href={`/organograma/${unidade.id}`} className={styles.unitLink} draggable={false}>
-                {node
-                  ? <CircleSvg node={node} color={levelColors[1]} />
-                  : <PlaceholderCircle label={unidade.nome_fantasia} />}
-              </Link>
+          {unidadesComGerentes.length > 0 && (
+            <div className={styles.track}>
+              {unidadesComGerentes.length > 1 && <div className={styles.spine} />}
+              {unidadesComGerentes.map(({ unidade, node }) => (
+                <div key={unidade.id} className={styles.item}>
+                  <div className={styles.drop} />
+                  <Link href={`/organograma/${unidade.id}`} className={styles.unitLink} draggable={false}>
+                    {node
+                      ? <CircleSvg node={node} color={levelColors[1]} />
+                      : <PlaceholderCircle label={unidade.nome_fantasia} />}
+                  </Link>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
 
           {!error && unidadesComGerentes.length === 0 && (
             <p className={styles.status}>Nenhuma unidade cadastrada ainda.</p>

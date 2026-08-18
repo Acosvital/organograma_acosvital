@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiPut, apiDelete, handleApiError, fetchAllPages } from '@/lib/apiClient';
+import { revalidateTag } from 'next/cache';
+import { apiPut, apiDelete, handleApiError, fetchAllPages, API_CACHE_TAG } from '@/lib/apiClient';
 import { guard } from '@/lib/routeGuard';
 import { isValidUUID, badRequest, parseJsonBody } from '@/lib/validation';
 
@@ -82,6 +83,7 @@ export async function PUT(
       } catch { /* best-effort: não bloqueia a resposta */ }
     }
 
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json(data);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao atualizar setor.');
@@ -137,5 +139,6 @@ export async function DELETE(
     ...affectedIds.map(fId => apiDelete(`/organograma_nodes/${fId}`)),
   ]);
 
+  revalidateTag(API_CACHE_TAG, 'max');
   return NextResponse.json({ ok: true });
 }

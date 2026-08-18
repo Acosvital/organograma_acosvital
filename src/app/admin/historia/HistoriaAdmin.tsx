@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { IcoPlus, IcoTrash } from '../_icons';
 import { toVideoEmbedUrl } from '@/lib/videoEmbed';
+import ImageUploadField from '@/components/ImageUploadField/ImageUploadField';
 import type { HistoriaContent, HistoriaTimelineItem } from '@/types/historia';
 import styles from '../crud.module.css';
+
+const HISTORIA_UPLOAD_ENDPOINT = '/api/admin/upload/historia';
 
 function emptyTimelineItem(): HistoriaTimelineItem {
   return { id: `tl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ano: new Date().getFullYear(), titulo: '', descricao: '', imagemUrl: null };
@@ -137,24 +140,14 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
             </div>
 
             <div className={styles.field}>
-              <label className={styles.label}>Imagem de fundo</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                {backgroundImageUrl && (
-                  <img
-                    src={backgroundImageUrl}
-                    alt=""
-                    style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-subtle)' }}
-                    onError={e => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
-                  />
-                )}
-                <input
-                  className={styles.input}
-                  value={backgroundImageUrl}
-                  onChange={e => setBackgroundImageUrl(e.target.value)}
-                  placeholder="https://…"
-                />
-              </div>
-              <span className={styles.fieldHint}>Aparece por trás do texto na tela pública, com um gradiente escuro por cima para manter a leitura. Deixe em branco para usar só o fundo padrão.</span>
+              <ImageUploadField
+                label="Imagem de fundo"
+                value={backgroundImageUrl}
+                onChange={setBackgroundImageUrl}
+                uploadEndpoint={HISTORIA_UPLOAD_ENDPOINT}
+                recommendedSize={{ width: 1920, height: 1080 }}
+                hint="Aparece por trás do texto na tela pública, com um gradiente escuro por cima para manter a leitura. Deixe em branco para usar só o fundo padrão."
+              />
             </div>
 
             <div className={styles.field}>
@@ -187,11 +180,13 @@ export default function HistoriaAdmin({ initialHistoria }: Props) {
                         onChange={e => updateTimelineItem(item.id, { descricao: e.target.value })}
                         placeholder="Descrição (opcional)"
                       />
-                      <input
-                        className={styles.input}
+                      <ImageUploadField
                         value={item.imagemUrl ?? ''}
-                        onChange={e => updateTimelineItem(item.id, { imagemUrl: e.target.value || null })}
-                        placeholder="URL da imagem (opcional)"
+                        onChange={url => updateTimelineItem(item.id, { imagemUrl: url || null })}
+                        uploadEndpoint={HISTORIA_UPLOAD_ENDPOINT}
+                        aspectRatio={16 / 9}
+                        recommendedSize={{ width: 800, height: 450 }}
+                        hint="Imagem opcional do marco."
                       />
                     </div>
                     <button

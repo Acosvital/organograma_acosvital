@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiPut, apiDelete, handleApiError } from '@/lib/apiClient';
+import { revalidateTag } from 'next/cache';
+import { apiPut, apiDelete, handleApiError, API_CACHE_TAG } from '@/lib/apiClient';
 import { guard } from '@/lib/routeGuard';
 import { isValidUUID, badRequest, parseJsonBody } from '@/lib/validation';
 
@@ -51,6 +52,7 @@ export async function PUT(
 
   try {
     const data = await apiPut(`/unidades/${id}`, patch);
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json(data);
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao atualizar unidade.');
@@ -72,6 +74,7 @@ export async function DELETE(
 
   try {
     await apiDelete(`/unidades/${id}`);
+    revalidateTag(API_CACHE_TAG, 'max');
     return NextResponse.json({ ok: true });
   } catch (e) {
     const { msg, status } = handleApiError(e, 'Erro ao excluir unidade.');

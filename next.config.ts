@@ -29,7 +29,10 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} ${process.env.API_ACOSVITAL_URL ?? ''}`,
+      // viacep: busca de endereço por CEP (admin de unidades/clientes). nominatim:
+      // geocodificação (lat/lon) do endereço pra pin no globo — ambas chamadas
+      // direto do navegador, então precisam estar liberadas aqui.
+      `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} ${process.env.API_ACOSVITAL_URL ?? ''} https://viacep.com.br https://nominatim.openstreetmap.org`,
       "frame-ancestors 'none'",
     ].join('; '),
   },
@@ -40,6 +43,14 @@ const nextConfig: NextConfig = {
   ...(devOrigins.length > 0 ? { allowedDevOrigins: devOrigins } : {}),
   turbopack: {
     root: process.cwd(),
+    // konva (via react-filerobot-image-editor, usado só no navegador com
+    // ssr:false) faz require('canvas') incondicional ao ser avaliado — canvas
+    // é dependência nativa opcional que não instalamos. O Turbopack tenta
+    // resolver esse require estaticamente mesmo no branch nunca executado no
+    // servidor, quebrando a build inteira; redireciona para um stub vazio.
+    resolveAlias: {
+      canvas: './src/stubs/emptyModule.js',
+    },
   },
   async headers() {
     return [
