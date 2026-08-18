@@ -1274,7 +1274,19 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       dragLastRef.current = { x: e.clientX, y: e.clientY };
     };
 
+    // Mexer no globo (arrastar, pinçar, rodar a roda) pausa a rotação
+    // automática de vez — sem isso, ela só parava durante o próprio gesto e
+    // voltava sozinha assim que a inércia esfriava, "brigando" com quem
+    // acabou de reposicionar o globo. Só volta a girar se o usuário apertar
+    // o botão de play/pause do painel.
+    const pauseAutoRotate = () => {
+      if (!autoRotateRef.current) return;
+      autoRotateRef.current = false;
+      setAutoRotate(false);
+    };
+
     const onMD = (e: MouseEvent) => {
+      pauseAutoRotate();
       dragStartX = e.clientX;
       dragStartY = e.clientY;
       draggingRef.current = true;
@@ -1309,6 +1321,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       const rect2 = cv.getBoundingClientRect();
       const coords = proj.invert([e.clientX - rect2.left, e.clientY - rect2.top]);
       if (!coords || isNaN(coords[0]) || isNaN(coords[1])) return;
+      pauseAutoRotate();
       targetLonRef.current  = -coords[0];
       targetLatRef.current  = Math.max(-85, Math.min(85, -coords[1]));
       isResettingRef.current = true;
@@ -1316,11 +1329,13 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      pauseAutoRotate();
       applyZoom(e.deltaY < 0 ? 1.1 : 0.9);
     };
 
     let prevTouchT = 0;
     const onTS = (e: TouchEvent) => {
+      pauseAutoRotate();
       if (e.touches.length === 1) {
         draggingRef.current = true;
         dragLastRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -1358,7 +1373,24 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         pinchRef.current = dist;
       }
     };
-    const onTE = () => { draggingRef.current = false; dragLastRef.current = null; pinchRef.current = null; };
+    // touchend/touchcancel só informam quais toques SAÍRAM (changedTouches);
+    // e.touches já reflete os que sobraram. Se sobrar exatamente 1 dedo (ex.:
+    // soltou um dos dois da pinça), retoma o arraste a partir dele em vez de
+    // zerar o gesto — sem isso, soltar um dedo no meio de uma pinça "matava"
+    // o toque: era preciso soltar tudo e tocar de novo pra voltar a girar.
+    const onTE = (e: TouchEvent) => {
+      pinchRef.current = null;
+      if (e.touches.length === 1) {
+        draggingRef.current = true;
+        dragLastRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        dragVelLonRef.current = 0;
+        dragVelLatRef.current = 0;
+        prevTouchT = performance.now();
+      } else {
+        draggingRef.current = false;
+        dragLastRef.current = null;
+      }
+    };
 
     cv.addEventListener('mousedown', onMD);
     cv.addEventListener('dblclick', onDblClick);
@@ -1368,6 +1400,10 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
     window.addEventListener('mouseup', onMU);
     window.addEventListener('touchmove', onTM, { passive: true });
     window.addEventListener('touchend', onTE);
+    // touchcancel: o SO pode interromper o toque sem disparar touchend (gesto
+    // do sistema, notificação, etc.) — sem isso, draggingRef ficava travado
+    // "true" e o próximo toque herdava uma posição/velocidade obsoleta.
+    window.addEventListener('touchcancel', onTE);
 
     return () => {
       cv.removeEventListener('mousedown', onMD);
@@ -1378,6 +1414,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
       window.removeEventListener('mouseup', onMU);
       window.removeEventListener('touchmove', onTM);
       window.removeEventListener('touchend', onTE);
+      window.removeEventListener('touchcancel', onTE);
     };
   }, []);
 
