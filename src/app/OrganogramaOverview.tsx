@@ -24,6 +24,8 @@ const DIRECTOR_CY    = 175;
 export interface UnidadeOverviewEntry {
   unidade: Unidade;
   node: PositionedNode | null;
+  /** Cor do card desta unidade (Administrar → Cadastrar unidades), ou null para a cor padrão do nível. */
+  cardColor?: string | null;
 }
 
 interface Props {
@@ -196,12 +198,12 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
           {unidadesComGerentes.length > 0 && (
             <div className={styles.track}>
               {unidadesComGerentes.length > 1 && <div className={styles.spine} />}
-              {unidadesComGerentes.map(({ unidade, node }) => (
+              {unidadesComGerentes.map(({ unidade, node, cardColor }) => (
                 <div key={unidade.id} className={styles.item}>
                   <div className={styles.drop} />
                   <Link href={`/organograma/${unidade.id}`} className={styles.unitLink} draggable={false}>
                     {node
-                      ? <CircleSvg node={node} color={levelColors[1]} />
+                      ? <CircleSvg node={node} color={cardColor ?? levelColors[1]} />
                       : <PlaceholderCircle label={unidade.nome_fantasia} />}
                   </Link>
                 </div>

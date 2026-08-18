@@ -277,6 +277,16 @@ export function calculateEvenSectorLayout(
     const absRing = Math.max(1, node.level - LEVEL_BASE);
     return nodeRadii[absRing] ?? nodeRadii[maxDefinedNodeR] ?? 8;
   };
+  // SectorCard (setor central e cards de subsetor) desenha anéis decorativos
+  // (glow, tracejado, borda) além do raio "nu" — sem contar essa folga extra
+  // aqui, o RADIAL_GAP calculado é comido pelos próprios anéis decorativos e
+  // o card parece colado no vizinho mesmo com folga "correta" no papel. Só
+  // usado nos cálculos de espaçamento; o raio REALMENTE renderizado
+  // (visualR, abaixo) continua o mesmo — isso não infla o card, só o respiro
+  // ao redor dele.
+  const SECTOR_CARD_DECOR_PAD = 10;
+  const spacingR = (node: OrgNode): number =>
+    visualR(node) + (node.id === sectorId || node.isSector ? SECTOR_CARD_DECOR_PAD : 0);
 
   // ── Build full children map ──
   const childrenOf = new Map<string, OrgNode[]>();
@@ -303,12 +313,79 @@ export function calculateEvenSectorLayout(
   }
   directSubSectorIds.forEach((id) => markHidden(id));
 
-  // ── Compressed level→ring mapping ──
+  // ── Recursive subtree weight ──
+  // Peso = total de folhas visíveis na subárvore inteira de um nó (todos os
+  // anéis abaixo dele, não só os filhos diretos). Usado para dividir o
+  // espaço angular proporcionalmente ao tamanho REAL de cada ramo — sem
+  // isso, dois líderes com leques de tamanhos bem diferentes recebem a
+  // mesma largura, o maior fica espremido contra o vizinho e o menor sobra
+  // espaço vazio do lado oposto (sintoma reportado na Expedição).
+  const leafWeightCache = new Map<string, number>();
+  function leafWeight(id: string): number {
+    const cached = leafWeightCache.get(id);
+    if (cached !== undefined) return cached;
+    const kids = (childrenOf.get(id) ?? []).filter((c) => !hiddenIds.has(c.id));
+    const w = kids.length === 0 ? 1 : kids.reduce((s, k) => s + leafWeight(k.id), 0);
+    leafWeightCache.set(id, w);
+    return w;
+  }
+
+  // Empacota um grupo inteiro de irmãos (mesmo pai) centrado no ângulo do
+  // pai, com a largura de cada irmão proporcional ao seu leafWeight —
+  // cumulativo, então nunca há sobreposição entre irmãos por construção.
+  // `avail` é o MEIO-orçamento reservado do próprio pai (herdado de quando
+  // o pai foi posicionado, não a distância até o vizinho): como o peso do
+  // pai já é a soma recursiva do peso de todos os filhos, a largura total
+  // pedida pelos filhos bate exatamente com o que o pai reservou — por
+  // isso o leque cabe sem precisar comprimir depois, em qualquer anel.
+  // Retorna {node, angle, half} — `half` é repassado como o `avail` do
+  // próprio filho quando ele por sua vez vira pai no anel seguinte.
+  function packGroup(
+    grp: OrgNode[],
+    parentAngle: number,
+    avail: number,
+    minHalf: number,
+  ): Array<{ node: OrgNode; angle: number; half: number }> {
+    if (grp.length === 0) return [];
+    const weights = grp.map((n) => leafWeight(n.id));
+    const totalW = weights.reduce((s, w) => s + w, 0) || 1;
+    const rawWidths = weights.map((w) => Math.max(2 * minHalf, (w / totalW) * (2 * avail)));
+    const span = rawWidths.reduce((s, w) => s + w, 0);
+    const scale = avail > 0 && span > 2 * avail ? (2 * avail) / span : 1;
+    const widths = rawWidths.map((w) => w * scale);
+    const fullSpan = widths.reduce((s, w) => s + w, 0);
+    let cursor = -fullSpan / 2;
+    return grp.map((node, i) => {
+      const w = widths[i];
+      const center = cursor + w / 2;
+      cursor += w;
+      return { node, angle: parentAngle + center, half: w / 2 };
+    });
+  }
+
+  // ── Compressed depth→ring mapping ──
+  // Usa a profundidade REAL na árvore (contando saltos de parentId a partir
+  // do setor), não o campo `level` bruto do funcionário. Se o `level`
+  // cadastrado não é incrementado corretamente de pai pra filho (ex.: um
+  // "Aprendiz" salvo com o mesmo level do seu próprio superior "Auxiliar"),
+  // basear o anel no `level` os empilha no MESMO anel — a profundidade da
+  // árvore nunca falha assim, um filho está sempre um anel além do pai.
+  const depthOf = new Map<string, number>([[sectorId, 0]]);
+  function collectDepths(id: string) {
+    const d = depthOf.get(id) ?? 0;
+    for (const c of childrenOf.get(id) ?? []) {
+      if (hiddenIds.has(c.id)) continue;
+      depthOf.set(c.id, d + 1);
+      collectDepths(c.id);
+    }
+  }
+  collectDepths(sectorId);
+
   const presentLevels = new Set<number>();
   function collectLevels(id: string) {
     for (const c of childrenOf.get(id) ?? []) {
       if (hiddenIds.has(c.id)) continue;
-      if (!c.isSector) presentLevels.add(c.level);
+      if (!c.isSector) presentLevels.add(depthOf.get(c.id)!);
       collectLevels(c.id);
     }
   }
@@ -322,7 +399,7 @@ export function calculateEvenSectorLayout(
       return [lvl, ring];
     }),
   );
-  const getRing = (n: OrgNode) => n.isSector ? (subSectorRing ?? 1) : (levelToRing.get(n.level) ?? 1);
+  const getRing = (n: OrgNode) => n.isSector ? (subSectorRing ?? 1) : (levelToRing.get(depthOf.get(n.id) ?? 0) ?? 1);
 
   // ── Collect visible nodes per ring in DFS order ──
   const ringCollect = new Map<number, OrgNode[]>();
@@ -339,7 +416,7 @@ export function calculateEvenSectorLayout(
 
   // Raio mínimo p/ os nós de um anel caberem em volta da circunferência sem sobrepor.
   const ringMinR = (ringNodes: OrgNode[]): number => {
-    const maxVR = Math.max(...ringNodes.map((n) => visualR(n)));
+    const maxVR = Math.max(...ringNodes.map((n) => spacingR(n)));
     const footprint = Math.max(2 * maxVR, LABEL_FOOTPRINT_PX);
     return (ringNodes.length * (footprint + MIN_GAP)) / PI2;
   };
@@ -364,11 +441,11 @@ export function calculateEvenSectorLayout(
   // gente. Quando um anel tem muitos nós, o raio cresce o suficiente para todos
   // caberem em volta (minR) — preservando o comportamento de setores grandes.
   const dynamicRingR = new Map<number, number>();
-  const centerVR = nodeRadii[0] ?? 52;
+  const centerVR = (nodeRadii[0] ?? 52) + SECTOR_CARD_DECOR_PAD; // o próprio setor é sempre um SectorCard
   let prevOuter  = centerVR;  // borda externa do anel anterior (começa no card central)
   [...ringCollect.keys()].sort((a, b) => a - b).forEach((ring) => {
     const ringNodes = ringCollect.get(ring)!;
-    const maxVR = Math.max(...ringNodes.map((n) => visualR(n)));
+    const maxVR = Math.max(...ringNodes.map((n) => spacingR(n)));
     if (fitsAround(ringNodes)) {
       const minR     = ringMinR(ringNodes);              // raio p/ caber em volta
       const compactR = prevOuter + RADIAL_GAP + maxVR;   // colado ao anterior
@@ -408,8 +485,10 @@ export function calculateEvenSectorLayout(
   };
 
   // placedByRing: ring-mode → all nodes; column-mode → column tip nodes only
-  // (tips = deepest node in each column, becomes parent for the next ring)
-  const placedByRing = new Map<number, Array<{ id: string; angle: number }>>();
+  // (tips = deepest node in each column, becomes parent for the next ring).
+  // `half` = orçamento angular reservado para aquele nó quando ele vira pai
+  // do anel seguinte (ver packGroup).
+  const placedByRing = new Map<number, Array<{ id: string; angle: number; half: number }>>();
   // Outermost radius actually placed in each ring (including column depth)
   const outerRByRing = new Map<number, number>();
 
@@ -421,17 +500,17 @@ export function calculateEvenSectorLayout(
     // Ring 1 não tem anel anterior — quando precisa agrupar em colunas, usa o
     // próprio card do setor como "pai" único, abrindo um leque de 360°.
     const prevPlacedRaw = placedByRing.get(ring - 1) ?? [];
-    let prevPlaced: Array<{ id: string; angle: number }>;
+    let prevPlaced: Array<{ id: string; angle: number; half: number }>;
     if (ring === 1 && prevPlacedRaw.length === 0) {
-      prevPlaced = [{ id: sectorId, angle: START }];
+      prevPlaced = [{ id: sectorId, angle: START, half: Math.PI }];
     } else if (prevPlacedRaw.length === 0) {
       // Ring gap (e.g. subSectorRing skips a ring) — walk back to find nearest non-empty ring
-      let found: Array<{ id: string; angle: number }> = [];
+      let found: Array<{ id: string; angle: number; half: number }> = [];
       for (let r = ring - 1; r >= 1; r--) {
         const p = placedByRing.get(r);
         if (p && p.length > 0) { found = p; break; }
       }
-      prevPlaced = found.length > 0 ? found : [{ id: sectorId, angle: START }];
+      prevPlaced = found.length > 0 ? found : [{ id: sectorId, angle: START, half: Math.PI }];
     } else {
       prevPlaced = prevPlacedRaw;
     }
@@ -445,7 +524,7 @@ export function calculateEvenSectorLayout(
       (!fitsAround(ringNodes) || ringNodes.length > RING_GROUP_THRESHOLD) &&
       prevPlaced.length > 0;
 
-    const ringPlaced: Array<{ id: string; angle: number }> = [];
+    const ringPlaced: Array<{ id: string; angle: number; half: number }> = [];
 
     if (!useColumns) {
       // ────────────── RING MODE ──────────────
@@ -456,59 +535,45 @@ export function calculateEvenSectorLayout(
       //    que centra cada grupo de filhos no ângulo do pai).
       //  • Setor pequeno → passo justo (ombro a ombro): nós unidos e próximos, em
       //    sequência horária a partir do topo, sem grandes vãos.
-      const maxVR     = Math.max(...ringNodes.map((n) => visualR(n)));
+      const maxVR     = Math.max(...ringNodes.map((n) => spacingR(n)));
       const footprint = Math.max(2 * maxVR, LABEL_FOOTPRINT_PX);
       const tightStep = (footprint + RING_ANG_GAP) / r;   // nós lado a lado, com folga p/ respirar (inclui rótulo)
       const evenStep  = PI2 / ringNodes.length;           // volta inteira dividida
       const step      = sectorIsLarge ? evenStep : Math.min(evenStep, tightStep);
 
-      let nodeAngles: Array<{ node: OrgNode; angle: number }>;
-
-      if (ring === 1) {
-        nodeAngles = ringNodes.map((node, i) => ({ node, angle: START + step * i }));
-      } else {
-        ringNodes.sort((a, b) => norm(effectiveAngle(a)) - norm(effectiveAngle(b)));
-        const groups: Array<{ parentAngle: number; nodes: OrgNode[] }> = [];
-        ringNodes.forEach((node) => {
-          const pa   = effectiveAngle(node);
-          const last = groups[groups.length - 1];
-          if (last && Math.abs(norm(pa) - norm(last.parentAngle)) < 0.001) {
-            last.nodes.push(node);
-          } else {
-            groups.push({ parentAngle: pa, nodes: [node] });
-          }
+      // Agrupa por pai real (ou pelo pai mais próximo angularmente, para
+      // hierarquias "achatadas" onde o nível intermediário foi comprimido).
+      // Cada grupo é então empacotado (packGroup) dentro do orçamento
+      // angular que o PRÓPRIO PAI recebeu quando foi posicionado no anel
+      // anterior — não da distância até o vizinho. Como o peso do pai já é
+      // a soma recursiva do peso de todos os seus filhos, o que os filhos
+      // pedem cabe exatamente no que o pai reservou, em qualquer anel
+      // (inclusive o 1, que usa o círculo inteiro — meio-orçamento π —
+      // reservado pelo card do setor).
+      ringNodes.sort((a, b) => norm(effectiveAngle(a)) - norm(effectiveAngle(b)));
+      const prevById = new Map(prevPlaced.map((p) => [p.id, p]));
+      const nearestPrev = (angle: number) =>
+        prevPlaced.reduce((best, c) => {
+          const dc = Math.min(Math.abs(norm(c.angle) - norm(angle)), PI2 - Math.abs(norm(c.angle) - norm(angle)));
+          const db = Math.min(Math.abs(norm(best.angle) - norm(angle)), PI2 - Math.abs(norm(best.angle) - norm(angle)));
+          return dc < db ? c : best;
         });
-        nodeAngles = [];
-        const G = groups.length;
-        groups.forEach(({ parentAngle, nodes: grp }, gi) => {
-          const k = grp.length;
-          let effectiveStep = step;
+      const groupOrder: string[] = [];
+      const groups = new Map<string, { parent: { id: string; angle: number; half: number }; nodes: OrgNode[] }>();
+      ringNodes.forEach((node) => {
+        const parent = (node.parentId && prevById.get(node.parentId)) || nearestPrev(effectiveAngle(node));
+        if (!groups.has(parent.id)) { groups.set(parent.id, { parent, nodes: [] }); groupOrder.push(parent.id); }
+        groups.get(parent.id)!.nodes.push(node);
+      });
 
-          if (G > 1 && k > 1) {
-            // Limita o arco do grupo para não invadir o território do pai vizinho.
-            // Calcula meia-distância até o pai anterior e o próximo (normalizados
-            // para evitar problemas de wrap em 0/2π).
-            const pNorm    = norm(parentAngle);
-            const prevNorm = gi > 0
-              ? norm(groups[gi - 1].parentAngle)
-              : norm(groups[G - 1].parentAngle) - PI2;
-            const nextNorm = gi < G - 1
-              ? norm(groups[gi + 1].parentAngle)
-              : norm(groups[0].parentAngle) + PI2;
-            const maxHalfArc = Math.min(pNorm - prevNorm, nextNorm - pNorm) / 2 * 0.82;
-            const naturalHalf = (k - 1) / 2 * step;
-            if (naturalHalf > maxHalfArc) {
-              effectiveStep = (maxHalfArc * 2) / (k - 1);
-            }
-          }
+      const minHalf = step / 2;
+      const nodeAngles: Array<{ node: OrgNode; angle: number; half: number }> = [];
+      groupOrder.forEach((pid) => {
+        const { parent, nodes: grp } = groups.get(pid)!;
+        packGroup(grp, parent.angle, parent.half, minHalf).forEach((p) => nodeAngles.push(p));
+      });
 
-          grp.forEach((node, i) => {
-            nodeAngles.push({ node, angle: parentAngle + (i - (k - 1) / 2) * effectiveStep });
-          });
-        });
-      }
-
-      nodeAngles.forEach(({ node, angle }) => {
+      nodeAngles.forEach(({ node, angle, half }) => {
         let visualParentId = node.parentId;
         if (ring > 1 && node.parentId === sectorId && prevPlaced.length > 0) {
           const myN = norm(angle);
@@ -521,7 +586,7 @@ export function calculateEvenSectorLayout(
         const vr = visualR(node);
         result.push({ ...node, parentId: visualParentId, x: Math.cos(angle) * r, y: Math.sin(angle) * r, angle, radius: vr });
         angleOf.set(node.id, angle);
-        ringPlaced.push({ id: node.id, angle });
+        ringPlaced.push({ id: node.id, angle, half });
         if (ring === 1 && !node.isSector) ring1People.push({ level: node.level, angle });
       });
 
@@ -634,7 +699,8 @@ export function calculateEvenSectorLayout(
         // Column tips (deepest node per column) become parents for the next ring
         colLast.forEach((tipId, col) => {
           const tipAngle = parentAngle + (col - (colCount - 1) / 2) * colAngStep;
-          ringPlaced.push({ id: tipId, angle: tipAngle });
+          const tipHalf  = colAngStep > 0 ? colAngStep / 2 : halfArc;
+          ringPlaced.push({ id: tipId, angle: tipAngle, half: tipHalf });
         });
       });
 
