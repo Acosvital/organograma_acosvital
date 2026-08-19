@@ -3,7 +3,6 @@ import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { createClient } from '@/lib/supabase/server';
 import { getMyRole } from '@/lib/apiAuth';
 import SidebarShell from '@/components/Sidebar/SidebarShell';
-import IdleHomeRedirect from '@/components/IdleHomeRedirect';
 import { LOGO_URL } from '@/lib/constants';
 import "./globals.css";
 
@@ -65,7 +64,6 @@ export default async function RootLayout({
         />
       </head>
       <body suppressHydrationWarning>
-        <IdleHomeRedirect />
         <SidebarShell isAdmin={isAdmin} userEmail={userEmail}>
           {children}
         </SidebarShell>
