@@ -7,39 +7,57 @@
   bottom: 24px;
   transform: translateX(-50%);
   z-index: 200;
-  width: min(90vw, 640px);
+  width: min(90vw, 680px);
   background: var(--glass-bg-strong);
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-glass);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: 10px 12px 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  padding: 8px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  animation: kbSlideIn 0.18s ease-out;
+}
+
+@keyframes kbSlideIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .header {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px 2px;
+}
+
+.title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .closeBtn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-full);
   border: 1px solid var(--glass-border);
-  background: transparent;
+  background: var(--glass-bg);
   color: var(--text-muted);
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
 }
-.closeBtn:hover { background: var(--accent-bg); color: var(--text-primary); }
+.closeBtn:hover  { background: var(--accent-bg); color: var(--text-primary); }
+.closeBtn:active { transform: scale(0.92); }
 
 /* Sobrescreve o tema padrão da lib (react-simple-keyboard) com os tokens do
  * app — as classes hg-* não são CSS Modules, por isso :global() aqui em vez
@@ -54,31 +72,81 @@
 }
 .overlay :global(.hg-row) {
   display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
+  gap: 7px;
+  margin-bottom: 7px;
 }
 .overlay :global(.hg-row:last-child) { margin-bottom: 0; }
+
 .overlay :global(.hg-button) {
   height: 48px;
   min-width: 40px;
   flex-grow: 1;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
+  border-bottom-width: 2px;
   color: var(--text-primary);
   font-size: 15px;
-  box-shadow: none;
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s, border-color 0.1s, transform 0.06s, box-shadow 0.1s;
 }
-.overlay :global(.hg-button.hg-functionBtn) {
-  color: var(--text-secondary);
-  font-size: 13px;
+.overlay :global(.hg-button:hover) {
+  background: var(--accent-bg);
+  border-color: var(--glass-border);
 }
 .overlay :global(.hg-button:active),
 .overlay :global(.hg-button.hg-activeButton) {
   background: var(--accent-bg);
-  border-color: var(--accent);
+  border-color: var(--accent-soft);
   color: var(--text-primary);
+  transform: translateY(1px);
+  box-shadow: none;
 }
+
+/* Teclas de função (bksp, shift padrão da lib) — visualmente mais discretas
+ * que as letras, mesma linguagem usada em teclados físicos/mobile. */
+.overlay :global(.hg-button.hg-functionBtn) {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--glass-border);
+}
+
+/* Espaço — bem mais largo, sem competir visualmente com as outras teclas. */
+.overlay :global(.hg-button[data-skbtn="{space}"]) {
+  flex-grow: 6;
+}
+
+/* ⇧ / #+= / ABC ativos (camada atual) — mesmo destaque de cor em todos, só
+ * muda o texto: deixa claro pra quem está olhando qual "modo" está ligado. */
+.kbToggleActive {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+/* #+= / ABC — toggle de camada de símbolos, sempre visível mesmo sem estar
+ * ativo, com um tom levemente diferente das demais teclas de função. */
+.kbSpecial {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+}
+
+/* Buscar ↵ — ação principal do teclado, destacada na cor de destaque do app
+ * em vez de se misturar com o resto (era cinza igual às outras antes). */
+.kbEnter {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  flex-grow: 2.4 !important;
+}
+.kbEnter:hover  { filter: brightness(1.08); }
+.kbEnter:active { filter: brightness(0.94); }
