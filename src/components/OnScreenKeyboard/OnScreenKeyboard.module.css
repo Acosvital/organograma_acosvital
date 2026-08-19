@@ -1,11 +1,14 @@
 /* Overlay fixo ancorado embaixo da tela — largura própria (não tenta caber
  * nos 260px da caixa de busca, estreita demais para um teclado usável num
- * painel touch grande). */
+ * painel touch grande). `left` fica de fora de propósito: OrgChart.tsx tem
+ * um ancestral com `transform` (efeito de tilt 3D), o que muda o container
+ * de referência de `position:fixed` — um `left:50%` aqui seria relativo a
+ * esse ancestral, não à tela, e um `%` não dá pra "travar" em px de forma
+ * confiável ao iniciar o arraste. O componente calcula e aplica o `left`
+ * inicial via JS (mesma referência usada pelo arraste — ver OnScreenKeyboard.tsx). */
 .overlay {
   position: fixed;
-  left: 50%;
   bottom: 24px;
-  transform: translateX(-50%);
   z-index: 200;
   width: min(90vw, 680px);
   background: var(--glass-bg-strong);
@@ -22,18 +25,33 @@
 }
 
 @keyframes kbSlideIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Arrastável — pega em qualquer ponto do cabeçalho, não só na alça (ícone é
+ * só uma dica visual). touch-action:none evita o navegador tentar rolar a
+ * página por baixo do dedo enquanto arrasta num painel touch. */
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 4px 2px 2px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.header:active { cursor: grabbing; }
+
+.dragHandle {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  letter-spacing: -1px;
 }
 
 .title {
+  flex: 1;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;

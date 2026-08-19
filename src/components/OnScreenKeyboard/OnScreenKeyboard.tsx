@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { KeyboardReactInterface } from 'react-simple-keyboard';
 import 'react-simple-keyboard/build/css/index.css';
@@ -68,6 +68,7 @@ interface Props {
 
 export default function OnScreenKeyboard({ value, onChange, onEnter, onClose }: Props) {
   const keyboardRef = useRef<KeyboardReactInterface | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const [layoutName, setLayoutName] = useState<LayoutName>('default');
 
   // Mantém o buffer interno do teclado sincronizado quando `value` muda por
@@ -77,9 +78,91 @@ export default function OnScreenKeyboard({ value, onChange, onEnter, onClose }: 
     keyboardRef.current?.setInput(value);
   }, [value]);
 
+  // Centraliza horizontalmente ao montar — em px absolutos, calculados no
+  // mesmo referencial usado pelo arraste (ver nota no CSS: `left:50%` não dá
+  // pra usar aqui por causa do ancestral com `transform`). Só a largura, não
+  // a altura: a altura continua ancorada por `bottom` no CSS, que lida bem
+  // com o teclado ainda crescendo (import dinâmico do react-simple-keyboard).
+  useLayoutEffect(() => {
+    const el = overlayRef.current;
+    if (!el) return;
+    const container = el.offsetParent as HTMLElement | null;
+    const containerW = container?.clientWidth ?? window.innerWidth;
+    el.style.left = `${Math.max(0, (containerW - el.offsetWidth) / 2)}px`;
+  }, []);
+
+  // ── Arrastar pelo cabeçalho ──────────────────────────────────────────────
+  // Manipula `left`/`top` direto no DOM (sem useState) para não re-renderizar
+  // o teclado inteiro a cada pixel de movimento — mesmo motivo do pan do
+  // canvas principal em OrgChart.tsx. No primeiro arraste "trava" a posição
+  // atual (calculada da âncora `left:50%;bottom:24px` original) em px
+  // absolutos, substituindo a âncora por CSS — dali em diante o overlay só
+  // responde à posição que o usuário escolheu.
+  //
+  // Usa `offsetLeft`/`offsetTop` (relativos ao containing block real deste
+  // elemento) em vez de `getBoundingClientRect()` (sempre relativo à
+  // viewport): o wrapper do OrgChart tem um `transform` no ancestral (efeito
+  // de tilt 3D) — mesmo uma matriz identidade — o que já basta, por spec do
+  // CSS, pra tirar um `position:fixed` descendente da viewport e ancorá-lo
+  // nesse ancestral transformado. Misturar as duas referências fazia o
+  // teclado "pular" um tanto de página assim que o arraste começava.
+  const dragRef = useRef<{ startX: number; startY: number; baseLeft: number; baseTop: number; pointerId: number } | null>(null);
+
+  const onHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = overlayRef.current;
+    if (!el || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    // Não inicia arraste ao tocar no "×" — só o gesto de fechar deve valer ali.
+    if ((e.target as HTMLElement).closest(`.${styles.closeBtn}`)) return;
+    el.style.left = `${el.offsetLeft}px`;
+    el.style.top = `${el.offsetTop}px`;
+    el.style.bottom = 'auto';
+    el.style.transform = 'none';
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseLeft: el.offsetLeft,
+      baseTop: el.offsetTop,
+      pointerId: e.pointerId,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onHeaderPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = dragRef.current;
+    const el = overlayRef.current;
+    if (!st || !el) return;
+    const dx = e.clientX - st.startX;
+    const dy = e.clientY - st.startY;
+    // Limites no mesmo referencial de `left`/`top` (o containing block real,
+    // não necessariamente a janela inteira — ver nota acima).
+    const container = el.offsetParent as HTMLElement | null;
+    const containW = container?.clientWidth ?? window.innerWidth;
+    const containH = container?.clientHeight ?? window.innerHeight;
+    const maxLeft = containW - el.offsetWidth;
+    const maxTop = containH - el.offsetHeight;
+    // Mantém pelo menos uma faixa visível dentro da tela — nunca deixa
+    // arrastar o teclado inteiro pra fora, onde ficaria impossível de pegar
+    // de volta num painel touch (sem mouse pra "puxar" de longe).
+    const left = Math.min(Math.max(st.baseLeft + dx, 0), Math.max(maxLeft, 0));
+    const top = Math.min(Math.max(st.baseTop + dy, 0), Math.max(maxTop, 0));
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  };
+
+  const onHeaderPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId === e.pointerId) dragRef.current = null;
+  };
+
   return (
-    <div className={styles.overlay}>
-      <div className={styles.header}>
+    <div className={styles.overlay} ref={overlayRef}>
+      <div
+        className={styles.header}
+        onPointerDown={onHeaderPointerDown}
+        onPointerMove={onHeaderPointerMove}
+        onPointerUp={onHeaderPointerUp}
+        onPointerCancel={onHeaderPointerUp}
+      >
+        <span className={styles.dragHandle} aria-hidden="true">⠿</span>
         <span className={styles.title}>Teclado</span>
         <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Fechar teclado">
           ×
