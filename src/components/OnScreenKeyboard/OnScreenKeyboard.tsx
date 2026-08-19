@@ -175,6 +175,13 @@ export default function OnScreenKeyboard({ value, onChange, onEnter, onClose }: 
         display={DISPLAY}
         mergeDisplay
         theme="hg-theme-default"
+        // Em touch, sem isso a lib escuta toque E o mousedown/click sintético
+        // que o navegador dispara logo depois — um toque só vira duas
+        // ativações da tecla (efeito "digitou duas vezes"). Só troca pro
+        // modo touch-only quando um dispositivo touch é realmente detectado
+        // (ontouchstart/maxTouchPoints, na própria lib) — mouse/desktop
+        // continua funcionando normalmente por clique.
+        autoUseTouchEvents
         buttonTheme={[
           ...(layoutName === 'shift' ? [{ class: styles.kbToggleActive, buttons: '{shift}' }] : []),
           ...(layoutName === 'special' ? [{ class: styles.kbToggleActive, buttons: '{special}' }] : []),
