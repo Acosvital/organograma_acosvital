@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import styles from './SidebarShell.module.css';
 import { FsContext } from '@/lib/fsContext';
+import IdleHomeRedirect from '@/components/IdleHomeRedirect';
 
 interface Props {
   isAdmin: boolean;
@@ -63,7 +64,12 @@ export default function SidebarShell({ isAdmin, userEmail, children }: Props) {
 
   const showSidebar = !HIDDEN_PATHS.some(p => pathname.startsWith(p));
 
-  if (!showSidebar) return <FsContext.Provider value={fsMode}>{children}</FsContext.Provider>;
+  if (!showSidebar) return (
+    <FsContext.Provider value={fsMode}>
+      <IdleHomeRedirect />
+      {children}
+    </FsContext.Provider>
+  );
 
   // Modo TV ou modo limpo: sidebar flutuante (position: fixed) sobre o conteúdo.
   const isFloating = fsMode === 'tv' || fsMode === 'clean';
@@ -75,6 +81,7 @@ export default function SidebarShell({ isAdmin, userEmail, children }: Props) {
   // em tela cheia.
   return (
     <FsContext.Provider value={fsMode}>
+    <IdleHomeRedirect />
     <div className={styles.shell}>
       {/* Backdrop — cobre o conteúdo quando sidebar mobile está aberta */}
       {!isFloating && mobileOpen && (
