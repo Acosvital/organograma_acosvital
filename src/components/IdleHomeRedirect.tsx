@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useFsMode } from '@/lib/fsContext';
 
 /** Tempo sem interação até voltar pra tela inicial — pensado para quiosque/TV:
  *  se a pessoa atual ficou parada e outra chegar, a tela já está "limpa". */
@@ -20,6 +21,7 @@ const EXCLUDED_PREFIXES = ['/admin', '/login'];
 export default function IdleHomeRedirect() {
   const pathname = usePathname();
   const router = useRouter();
+  const fsMode = useFsMode();
   const lastActivity = useRef(Date.now());
 
   // Trocar de rota conta como atividade — evita redirecionar alguém que
@@ -27,6 +29,13 @@ export default function IdleHomeRedirect() {
   useEffect(() => {
     lastActivity.current = Date.now();
   }, [pathname]);
+
+  // Sair do Modo TV também conta como atividade — sem isso, a contagem
+  // parada durante a apresentação já estaria "vencida" no instante em que o
+  // modo TV é desligado, disparando um redirecionamento imediato indevido.
+  useEffect(() => {
+    lastActivity.current = Date.now();
+  }, [fsMode]);
 
   useEffect(() => {
     const markActive = () => { lastActivity.current = Date.now(); };
@@ -42,7 +51,10 @@ export default function IdleHomeRedirect() {
 
   useEffect(() => {
     const isExcluded = pathname === '/' || EXCLUDED_PREFIXES.some(p => pathname.startsWith(p));
-    if (isExcluded) return;
+    // Modo TV é uma apresentação passiva de propósito — ninguém toca na tela
+    // enquanto ela gira sozinha, então a contagem de inatividade não deve
+    // valer aqui (senão ela sempre "vence" e interrompe a apresentação).
+    if (isExcluded || fsMode === 'tv') return;
 
     const id = setInterval(() => {
       if (Date.now() - lastActivity.current > IDLE_MS) {
@@ -50,7 +62,7 @@ export default function IdleHomeRedirect() {
       }
     }, CHECK_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [pathname, router]);
+  }, [pathname, router, fsMode]);
 
   return null;
 }
