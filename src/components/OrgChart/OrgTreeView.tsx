@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { OrgNode } from '@/types/orgChart';
 import Avatar from '@/components/ui/Avatar';
-import { useIsTouchDevice } from '@/lib/hooks/useIsTouchDevice';
 import OnScreenKeyboard from '@/components/OnScreenKeyboard/OnScreenKeyboard';
 import styles from './OrgTreeView.module.css';
 
@@ -35,8 +34,11 @@ function canonId(id: string): string {
 export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }: Props) {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const isTouch = useIsTouchDevice();
   const [kbOpen, setKbOpen] = useState(false);
+  // Sobe quando um keydown REAL chega no input (só hardware físico dispara
+  // isso — o teclado virtual atualiza `query` via prop, nunca via evento
+  // nativo no input) — mesmo padrão de OrgChart.tsx.
+  const [physicalKeyboardActive, setPhysicalKeyboardActive] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement>(null);
 
   // Filhos indexados pelo parentId canônico, preservando a ordem de chegada.
@@ -70,9 +72,9 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
       .slice(0, 200);
   }, [query, nodes]);
 
-  // Fecha o teclado virtual ao tocar fora dele — mesmo padrão de OrgChart.tsx.
+  // Fecha o teclado virtual ao tocar/clicar fora dele — mesmo padrão de OrgChart.tsx.
   useEffect(() => {
-    if (!isTouch || !kbOpen) return;
+    if (!kbOpen) return;
     const onPointerDownOutside = (e: PointerEvent) => {
       if (searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) {
         setKbOpen(false);
@@ -80,7 +82,7 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
     };
     document.addEventListener('pointerdown', onPointerDownOutside);
     return () => document.removeEventListener('pointerdown', onPointerDownOutside);
-  }, [isTouch, kbOpen]);
+  }, [kbOpen]);
 
   const toggle = (id: string) =>
     setCollapsed((prev) => {
@@ -137,18 +139,19 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
           className={styles.search}
           placeholder="Buscar pessoa, cargo ou setor…"
           value={query}
-          inputMode={isTouch ? 'none' : undefined}
+          inputMode="none"
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setKbOpen(true)}
-          // Em touch, autoFocus abriria o teclado virtual assim que a Lista monta,
+          onFocus={() => { setKbOpen(true); setPhysicalKeyboardActive(false); }}
+          onKeyDown={() => setPhysicalKeyboardActive(true)}
+          // Sem autoFocus: abriria o teclado virtual assim que a Lista monta,
           // cobrindo a árvore de pessoas com o overlay do teclado (só a Diretoria,
-          // no topo, ficava visível). Foco automático só faz sentido no desktop.
-          autoFocus={!isTouch}
+          // no topo, ficava visível) — o teclado deve abrir só quando a pessoa
+          // realmente tocar/clicar no campo de busca.
         />
         {query && (
           <button type="button" className={styles.clear} onClick={() => setQuery('')} aria-label="Limpar busca">×</button>
         )}
-        {isTouch && kbOpen && (
+        {kbOpen && !physicalKeyboardActive && (
           <OnScreenKeyboard
             value={query}
             onChange={setQuery}
