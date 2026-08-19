@@ -5,7 +5,6 @@ import CenterCard from "@/components/CenterCard/CenterCard";
 import NodeCard from "@/components/NodeCard/NodeCard";
 import SectorCard from "@/components/SectorCard/SectorCard";
 import { useFsMode } from "@/lib/fsContext";
-import { useIsTouchDevice } from "@/lib/hooks/useIsTouchDevice";
 import OnScreenKeyboard from "@/components/OnScreenKeyboard/OnScreenKeyboard";
 import { Connection, OrgNode, PositionedNode } from "@/types/orgChart";
 import {
@@ -127,7 +126,13 @@ export default function OrgChart({
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [flyTarget, setFlyTarget] = useState<string | null>(null);
   const [showOrbitalAnimation, setShowOrbitalAnimation] = useState(true);
-  const isTouch = useIsTouchDevice();
+  // Teclado virtual sempre abre ao focar a busca (detectar "é touch?" não é
+  // confiável em todo hardware — ver histórico do useIsTouchDevice). Some ao
+  // primeiro keydown REAL no campo, sinal de que um teclado físico está sendo
+  // usado (a lib do teclado virtual só atualiza `query` via prop, nunca
+  // dispara keydown nativo no input — então esse evento só pode vir de
+  // hardware de verdade).
+  const [physicalKeyboardActive, setPhysicalKeyboardActive] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
 
   const minW = activeSectorId ? MIN_W_SC : MIN_W_OV;
@@ -512,12 +517,12 @@ export default function OrgChart({
     [nearestSectorId],
   );
 
-  // Fecha a busca ao tocar fora dela — em touch o teclado virtual (OnScreenKeyboard)
+  // Fecha a busca ao tocar/clicar fora dela — o teclado virtual (OnScreenKeyboard)
   // é um overlay fixo próprio; tocar nos botões dele não deve fechar a busca (por
   // isso não usa o onBlur do input, que dispararia antes do toque na tecla ser
-  // processado). O onBlur normal (com timeout) continua valendo fora do touch.
+  // processado).
   useEffect(() => {
-    if (!isTouch || !searchOpen) return;
+    if (!searchOpen) return;
     const onPointerDownOutside = (e: PointerEvent) => {
       if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
         setSearchOpen(false);
@@ -525,7 +530,7 @@ export default function OrgChart({
     };
     document.addEventListener("pointerdown", onPointerDownOutside);
     return () => document.removeEventListener("pointerdown", onPointerDownOutside);
-  }, [isTouch, searchOpen]);
+  }, [searchOpen]);
 
   // Centraliza e destaca o alvo assim que o layout dele estiver disponível.
   useEffect(() => {
@@ -1538,13 +1543,13 @@ export default function OrgChart({
               className={styles.searchInput}
               placeholder="Buscar pessoa ou setor…"
               value={query}
-              inputMode={isTouch ? "none" : undefined}
+              inputMode="none"
               onChange={(e) => {
                 setQuery(e.target.value);
                 setSearchOpen(true);
               }}
-              onFocus={() => setSearchOpen(true)}
-              onBlur={isTouch ? undefined : () => setTimeout(() => setSearchOpen(false), 150)}
+              onFocus={() => { setSearchOpen(true); setPhysicalKeyboardActive(false); }}
+              onKeyDown={() => setPhysicalKeyboardActive(true)}
             />
             {query && (
               <button
@@ -1590,7 +1595,7 @@ export default function OrgChart({
                 ))}
               </ul>
             )}
-            {isTouch && searchOpen && (
+            {searchOpen && !physicalKeyboardActive && (
               <OnScreenKeyboard
                 value={query}
                 onChange={(v) => { setQuery(v); setSearchOpen(true); }}
