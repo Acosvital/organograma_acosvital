@@ -12,6 +12,13 @@ const ICON_LOGO_URL =
   'https://s3.acosvital.com.br/organograma-prd-empresa/geral/logo/logo_icone_apenas.png';
 
 // ── Ícones ────────────────────────────────────────────────────────────────
+function IconWelcome() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/>
+    </svg>
+  );
+}
 function IconOrg() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -110,7 +117,9 @@ function IconEyeOff() {
 
 
 // ── Rotas ────────────────────────────────────────────────────────────────
+// TEMPORÁRIO (visita Bradesco): remover este item e o link /bem-vindo depois.
 const NAV = [
+  { href: '/bem-vindo', label: 'Bem-vindo',      Icon: IconWelcome  },
   { href: '/',         label: 'Organograma',    Icon: IconOrg      },
   { href: '/unidades', label: 'Unidades',       Icon: IconBuilding },
   { href: '/clientes', label: 'Clientes',       Icon: IconUsers    },
