@@ -66,7 +66,10 @@ export async function signIn(
     } catch {}
   }
 
-  redirect(next && next.startsWith('/') ? next : '/admin');
+  // TEMPORÁRIO (visita Bradesco): sempre passa pela tela de boas-vindas antes
+  // do destino normal. Reverter para `next && next.startsWith('/') ? next : '/admin'`
+  // depois da visita.
+  redirect('/bem-vindo');
 }
 
 export async function signOut(): Promise<void> {
