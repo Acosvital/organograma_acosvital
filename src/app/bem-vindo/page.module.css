@@ -1,0 +1,130 @@
+.page {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #cc092f 0%, #633280 100%);
+}
+
+.card {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* ── Logos ─────────────────────────────────────────────────────────────── */
+.logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  margin-bottom: 40px;
+}
+
+.logoChip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 220px;
+  height: 84px;
+}
+
+.logo,
+.partnerLogo {
+  max-height: 48px;
+  max-width: 100%;
+  width: auto;
+  object-fit: contain;
+}
+
+.logosDivider {
+  width: 1px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+}
+
+/* ── Texto ─────────────────────────────────────────────────────────────── */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.eyebrow::before,
+.eyebrow::after {
+  content: '';
+  width: 22px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.title {
+  margin: 0 0 14px;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+.sub {
+  max-width: 380px;
+  margin: 0 0 40px;
+  font-size: var(--text-lg);
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* ── Botão ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 32px;
+  background: #fff;
+  color: #7a1650;
+  border-radius: var(--radius-full);
+  font-size: var(--text-base);
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  transition: transform var(--dur-fast) var(--ease-spring),
+              box-shadow var(--dur-fast) var(--ease-in-out);
+}
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.32);
+}
+.btn:active {
+  transform: translateY(0);
+}
+
+.btnArrow {
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.btn:hover .btnArrow {
+  transform: translateX(3px);
+}
+
+@media (max-width: 640px) {
+  .logos { gap: 14px; margin-bottom: 32px; }
+  .logoChip { width: 150px; height: 58px; padding: 0 14px; }
+  .logo, .partnerLogo { max-height: 28px; }
+  .title { font-size: 30px; }
+  .sub { font-size: var(--text-base); margin-bottom: 32px; }
+  .btn { padding: 13px 26px; }
+}
