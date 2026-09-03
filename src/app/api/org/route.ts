@@ -6,7 +6,7 @@ import { getOrgNodes } from '@/lib/data/org';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const { error } = await guard(request, { role: 'viewer' });
+  const { error } = await guard(request);
   if (error) return error;
 
   try {

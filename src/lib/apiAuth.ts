@@ -1,101 +1,55 @@
 import { NextResponse } from 'next/server';
-import { createClient } from './supabase/server';
+import { auth } from './session';
+import { hasPermission } from './permissions';
 import { DEV_AUTH_BYPASS } from './devAuth';
-
-export type Role = 'admin' | 'editor' | 'viewer';
 
 export interface AuthCtx {
   userId: string;
-  role:   Role;
+  email?: string | null;
 }
 
-type SB = Awaited<ReturnType<typeof createClient>>;
-
-type Ok  = { ctx: AuthCtx; supabase: SB;  err: null };
-type Err = { ctx: null;    supabase: null; err: NextResponse };
-
-/** Fonte única da verdade para o papel do usuário via RPC `get_my_role`. */
-async function fetchRole(supabase: SB): Promise<Role | null> {
-  const { data: role, error } = await supabase.rpc('get_my_role');
-  if (error || !role) return null;
-  return role as Role;
-}
+type Ok  = { ctx: AuthCtx; err: null };
+type Err = { ctx: null;    err: NextResponse };
 
 /**
- * Retorna o papel do usuário logado (ou null se não autenticado/sem papel).
- * Uso em Server Components/páginas que só precisam do papel (ex.: gate do
- * layout admin, tela de clientes) — sem duplicar a chamada RPC em cada tela.
- * Respeita o bypass de desenvolvimento.
+ * Verifica que existe uma sessão NextAuth válida.
+ * Retorna { ctx } se autorizado, ou { err } com resposta HTTP pronta.
  */
-export async function getMyRole(): Promise<Role | null> {
-  if (DEV_AUTH_BYPASS) return 'admin';
-  try {
-    const supabase = await createClient();
-    return await fetchRole(supabase);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Verifica sessão + role mínima requerida.
- * Retorna { ctx, supabase } se autorizado, ou { err } com resposta HTTP pronta.
- * O cliente Supabase retornado pode ser reutilizado nas operações de dados.
- */
-export async function requireAuth(minRole: Role = 'viewer'): Promise<Ok | Err> {
-  // Bypass de desenvolvimento: assume papel de admin sem sessão real, para que
-  // as telas internas (incl. editor admin) sejam inspecionáveis. Sem efeito em
-  // produção — veja `devAuth.ts`. Escritas ainda respeitam o RLS do banco.
+export async function requireAuth(): Promise<Ok | Err> {
   if (DEV_AUTH_BYPASS) {
-    try {
-      const supabase = await createClient();
-      return { ctx: { userId: 'dev-bypass', role: 'admin' }, supabase, err: null };
-    } catch {
-      return errResponse(503, 'Serviço temporariamente indisponível.');
-    }
+    return { ctx: { userId: 'dev-bypass', email: 'dev@local' }, err: null };
   }
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return errResponse(503, 'Serviço temporariamente indisponível.');
-  }
-
-  let supabase: SB;
   try {
-    supabase = await createClient();
+    const session = await auth();
+    if (!session?.user?.id_usuario) {
+      return { ctx: null, err: errResponse(401, 'Não autenticado.') };
+    }
+    return { ctx: { userId: session.user.id_usuario, email: session.user.email }, err: null };
   } catch {
-    return errResponse(503, 'Serviço temporariamente indisponível.');
-  }
-
-  // getUser()/rpc() falam com o Supabase pela rede — uma instabilidade transitória
-  // aqui não pode virar um crash não tratado (500 genérico do Next.js); vira uma
-  // resposta JSON limpa para o front-end mostrar um toast normal.
-  try {
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !user) {
-      return errResponse(401, 'Não autenticado.');
-    }
-
-    const role = await fetchRole(supabase);
-    if (!role) {
-      return errResponse(403, 'Acesso negado. Usuário sem permissão cadastrada.');
-    }
-
-    const ROLE_RANK: Record<Role, number> = { viewer: 1, editor: 2, admin: 3 };
-    const userRank = ROLE_RANK[role] ?? 0;
-    if (userRank < ROLE_RANK[minRole]) {
-      return errResponse(403, 'Permissão insuficiente.');
-    }
-
-    return { ctx: { userId: user.id, role }, supabase, err: null };
-  } catch {
-    return errResponse(503, 'Não foi possível verificar sua sessão. Tente novamente.');
+    return { ctx: null, err: errResponse(503, 'Não foi possível verificar sua sessão. Tente novamente.') };
   }
 }
 
-function errResponse(status: number, message: string): Err {
-  return {
-    ctx:      null,
-    supabase: null,
-    err:      NextResponse.json({ error: message }, { status }),
-  };
+/**
+ * O organograma é somente leitura — a única distinção de acesso que resta é
+ * na tela de Clientes: quantidade, distribuição por região e os pontos no
+ * mapa aparecem pra qualquer autenticado; sem essa permissão, some só a
+ * lista de nomes embaixo e o painel de detalhe (ver `src/app/clientes/page.tsx`).
+ * Checado via a mesma árvore de permissões por tela
+ * (`/permissoes_usuario/menu/:id`) usada no Aços Hub, na tela
+ * `organograma-clientes` (ver docs do contrato).
+ */
+export async function canViewClientes(): Promise<boolean> {
+  if (DEV_AUTH_BYPASS) return true;
+  try {
+    const session = await auth();
+    return hasPermission(session?.user?.menu ?? [], 'organograma-clientes', 'pode_visualizar');
+  } catch {
+    return false;
+  }
+}
+
+function errResponse(status: number, message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status });
 }

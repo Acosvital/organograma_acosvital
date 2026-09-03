@@ -14,7 +14,7 @@ export default async function OrganogramaUnidadePage({
 }) {
   const { unidadeId } = await params;
 
-  const auth = await requireAuth('viewer');
+  const auth = await requireAuth();
 
   let initialNodes: OrgNode[] = [];
   if (!auth.err) {

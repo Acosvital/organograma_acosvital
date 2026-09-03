@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
-import { signOut } from '@/app/login/actions';
+import { signOut } from 'next-auth/react';
 import { LOGO_URL } from '@/lib/constants';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import styles from './Sidebar.module.css';
@@ -52,14 +52,6 @@ function IconUsers() {
       <circle cx="9" cy="7" r="4"/>
       <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
       <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-    </svg>
-  );
-}
-function IconSettings() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-      <circle cx="12" cy="12" r="3"/>
     </svg>
   );
 }
@@ -117,7 +109,6 @@ function IconEyeOff() {
 
 
 // ── Rotas ────────────────────────────────────────────────────────────────
-// TEMPORÁRIO (visita Bradesco): remover este item e o link /bem-vindo depois.
 const NAV = [
   { href: '/bem-vindo', label: 'Bem-vindo',      Icon: IconWelcome  },
   { href: '/',         label: 'Organograma',    Icon: IconOrg      },
@@ -126,17 +117,8 @@ const NAV = [
   { href: '/historia', label: 'Nossa História', Icon: IconBook     },
 ] as const;
 
-// Funcionários, Cargos e Setores agora são acessados por unidade
-// (Administrar → escolher unidade → Funcionários/Cargos/Setores dessa unidade).
-const ADMIN_SUB = [
-  { href: '/admin/unidades/cadastro',  label: 'Cadastrar unidades' },
-  { href: '/admin/clientes',           label: 'Clientes'           },
-  { href: '/admin/historia',           label: 'Nossa História'     },
-];
-
 // ── Componente ────────────────────────────────────────────────────────────
 interface Props {
-  isAdmin: boolean;
   userEmail?: string;
   /** Em tela cheia TV o sidebar flutua sobre o conteúdo */
   floating?: boolean;
@@ -155,7 +137,7 @@ interface Props {
 }
 
 export default function Sidebar({
-  isAdmin, userEmail,
+  userEmail,
   floating = false,
   isTvFs = false, isAnyFs = false,
   onTvFs, onCleanFs,
@@ -178,7 +160,7 @@ export default function Sidebar({
 
   async function handleSignOut() {
     setPending(true);
-    await signOut();
+    await signOut({ callbackUrl: '/login' });
   }
 
   const username = userEmail ? userEmail.split('@')[0] : 'usuário';
@@ -239,39 +221,6 @@ export default function Sidebar({
       </nav>
 
       <div className={styles.spacer} />
-
-      {/* ── Administração ─────────────────────────────────────────────── */}
-      {isAdmin && (
-        <div className={styles.adminSection}>
-          <span className={styles.sectionLabel}>Configurações</span>
-          <Link
-            href="/admin"
-            className={`${styles.navItem} ${pathname.startsWith('/admin') ? styles.active : ''}`}
-            title={collapsed ? 'Administrar' : undefined}
-            onClick={onMobileClose}
-          >
-            {pathname.startsWith('/admin') && <span className={styles.activePip} />}
-            <span className={styles.navIcon}><IconSettings /></span>
-            <span className={styles.navLabel}>Administrar</span>
-          </Link>
-
-          {pathname.startsWith('/admin') && !collapsed && (
-            <ul className={styles.subNav}>
-              {ADMIN_SUB.map(({ href, label }) => (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    className={`${styles.subNavItem} ${pathname === href ? styles.subNavActive : ''}`}
-                    onClick={onMobileClose}
-                  >
-                    {label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
 
       {/* ── Rodapé ────────────────────────────────────────────────────── */}
       <div className={styles.footer}>

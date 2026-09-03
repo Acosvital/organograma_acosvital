@@ -95,20 +95,3 @@ export interface OrgNodeOption {
   role: string;
   level: number;
 }
-
-export const NVL_LABELS: Record<number, string> = {
-  0:  'Diretoria',
-  1:  'Gerência Geral',
-  4:  'Diretor de Setor',
-  5:  'Gerente',
-  6:  'Coordenador',
-  7:  'Supervisor',
-  8:  'Líder de Equipe',
-  9:  'Analista',
-  10: 'Assistente / Auxiliar',
-  11: 'Auxiliar / Estagiário',
-  12: 'Aprendiz',
-};
-
-/** Níveis válidos para Cargos (2 e 3 são reservados para setores; API aceita 0–12) */
-export const CARGO_LEVELS = [0, 1, 4, 5, 6, 7, 8, 9, 10, 11, 12];

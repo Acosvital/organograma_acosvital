@@ -5,7 +5,7 @@ import { getClientesMapa } from '@/lib/data/clientesMapa';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const { error } = await guard(request, { role: 'viewer' });
+  const { error } = await guard(request);
   if (error) return error;
 
   const { searchParams } = new URL(request.url);

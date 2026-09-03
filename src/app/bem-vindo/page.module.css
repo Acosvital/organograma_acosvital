@@ -1,10 +1,12 @@
+/* Gradiente padrão (marca Açosvital) — sobrescrito inline quando há um
+   preset ativo com cor_inicio/cor_fim próprios (ver page.tsx). */
 .page {
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: linear-gradient(135deg, #cc092f 0%, #633280 100%);
+  background: linear-gradient(135deg, var(--brand) 0%, var(--accent) 100%);
 }
 
 .card {
@@ -96,7 +98,7 @@
   gap: 10px;
   padding: 15px 32px;
   background: #fff;
-  color: #7a1650;
+  color: var(--bg-deep);
   border-radius: var(--radius-full);
   font-size: var(--text-base);
   font-weight: 700;

@@ -8,14 +8,13 @@ import { FsContext } from '@/lib/fsContext';
 import IdleHomeRedirect from '@/components/IdleHomeRedirect';
 
 interface Props {
-  isAdmin: boolean;
   userEmail?: string;
   children: React.ReactNode;
 }
 
 const HIDDEN_PATHS = ['/login'];
 
-export default function SidebarShell({ isAdmin, userEmail, children }: Props) {
+export default function SidebarShell({ userEmail, children }: Props) {
   const pathname = usePathname();
 
   /** 'none' | 'tv' (sidebar flutuante) | 'clean' (sidebar oculta) */
@@ -115,7 +114,6 @@ export default function SidebarShell({ isAdmin, userEmail, children }: Props) {
 
       <Sidebar
         key="sidebar"
-        isAdmin={isAdmin}
         userEmail={userEmail}
         floating={isFloating}
         isTvFs={fsMode === 'tv'}

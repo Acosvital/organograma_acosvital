@@ -1,67 +1,39 @@
-import { createServerClient } from '@supabase/ssr';
+import { getToken } from 'next-auth/jwt';
 import { NextResponse, type NextRequest } from 'next/server';
 import { DEV_AUTH_BYPASS } from '@/lib/devAuth';
 
 export async function proxy(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
-
   // Bypass de desenvolvimento: libera todas as rotas sem verificação de auth.
   if (DEV_AUTH_BYPASS) {
-    return supabaseResponse;
+    return NextResponse.next();
   }
 
-  // Sem credenciais configuradas: bloqueia e redireciona para /login
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    const { pathname } = request.nextUrl;
-    const isPublic = pathname === '/login' || pathname.startsWith('/api/');
+  const { pathname } = request.nextUrl;
+  const isPublic = pathname === '/login' || pathname.startsWith('/api/');
+
+  // Sem NEXTAUTH_SECRET configurado: bloqueia e redireciona para /login
+  if (!process.env.NEXTAUTH_SECRET) {
     if (!isPublic) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
-    return supabaseResponse;
+    return NextResponse.next();
   }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
-          );
-        },
-      },
-    },
-  );
-
-  // Refresh da sessão — não remova esta chamada
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-
-  // Rotas públicas: apenas /login e /api (chamadas internas)
-  const isPublic = pathname === '/login' || pathname.startsWith('/api/');
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
 
   // Não autenticado fora das rotas públicas → redireciona para /login
-  if (!user && !isPublic) {
+  if (!token && !isPublic) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   // Autenticado tentando acessar /login → redireciona para home
-  if (user && pathname === '/login') {
+  if (token && pathname === '/login') {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
-  return supabaseResponse;
+  return NextResponse.next();
 }
 
 export const config = {

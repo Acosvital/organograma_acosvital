@@ -50,16 +50,6 @@ export async function parseJsonBody(
 }
 
 /**
- * Regras de negócio do nível hierárquico de um cargo, compartilhadas entre
- * criação (POST) e edição (PUT). Retorna a mensagem de erro (422) ou null se ok.
- */
-export function validateNvlPermissao(nvl: number): string | null {
-  if (nvl === 2 || nvl === 3) return 'Níveis 2 e 3 são reservados para setores e sub-setores.';
-  if (nvl > 12) return 'Nível hierárquico máximo permitido é 12.';
-  return null;
-}
-
-/**
  * Checagem de mesma origem para mutações (POST/PUT/DELETE) — camada extra de defesa contra CSRF.
  * Compara o header Origin (ou Referer como fallback) contra o host da própria requisição.
  * Requisições sem nenhum dos dois headers (ex.: chamadas server-to-server internas) passam —

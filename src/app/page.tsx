@@ -62,7 +62,7 @@ function buildDirectorsNode(directors: { id: string; role: string; name: string;
 }
 
 export default async function Home() {
-  const auth = await requireAuth('viewer');
+  const auth = await requireAuth();
 
   // Sessão expirada/ausente: manter a tela renderizando "vazia" faz um quiosque
   // desassistido parecer travado com dados incorretos. Manda pro login (e volta

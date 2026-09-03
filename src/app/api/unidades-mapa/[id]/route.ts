@@ -36,7 +36,7 @@ export async function GET(
   const { id } = await params;
   if (!isValidUUID(id)) return badRequest('ID inválido.');
 
-  const { error } = await guard(request, { role: 'viewer' });
+  const { error } = await guard(request);
   if (error) return error;
 
   try {
