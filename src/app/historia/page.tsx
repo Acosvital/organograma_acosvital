@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function HistoriaPage() {
-  const auth = await requireAuth('viewer');
+  const auth = await requireAuth();
 
   let historia: Awaited<ReturnType<typeof getHistoriaContent>> | null = null;
   let error = false;

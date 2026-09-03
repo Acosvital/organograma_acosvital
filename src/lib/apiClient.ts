@@ -26,6 +26,10 @@ export const API_CACHE_TAG = 'acosvital-api';
 // vice-versa) sem necessidade, forçando refetch de dados que não mudaram.
 export const HISTORIA_CACHE_TAG = 'acosvital-historia';
 
+// Tag para a tela de boas-vindas pós-login (welcome-settings/welcome-presets)
+// — domínio independente, gerido fora deste app.
+export const WELCOME_CACHE_TAG = 'acosvital-welcome';
+
 async function request<T>(path: string, init: RequestInit = {}, cacheTag: string = API_CACHE_TAG): Promise<T> {
   const url = `${BASE}/${path.replace(/^\//, '')}`;
   const method = (init.method ?? 'GET').toUpperCase();

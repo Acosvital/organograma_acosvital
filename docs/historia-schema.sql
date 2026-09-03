@@ -1,11 +1,11 @@
 -- ============================================================
 -- História da Empresa — schema para o banco da API externa
--- (api-test.acosvital.com.br), NÃO para o Supabase.
+-- (api-test.acosvital.com.br).
 --
--- Supabase aqui é só auth + storage de imagens; todo dado de
--- negócio deste projeto mora nesse banco (Postgres), atrás da
--- API. Rode isso no banco que alimenta a API, e implemente lá
--- os endpoints REST descritos no final deste arquivo.
+-- Todo dado de negócio deste projeto mora nesse banco (Postgres),
+-- atrás da API — não há mais banco/serviço Supabase envolvido.
+-- Rode isso no banco que alimenta a API, e implemente lá os
+-- endpoints REST descritos no final deste arquivo.
 --
 -- Idempotente — pode rodar de novo sem erro.
 -- ============================================================

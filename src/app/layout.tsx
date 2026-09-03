@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
-import { createClient } from '@/lib/supabase/server';
-import { getMyRole } from '@/lib/apiAuth';
+import { auth } from '@/lib/session';
+import { DEV_AUTH_BYPASS } from '@/lib/devAuth';
+import AuthProvider from '@/components/AuthProvider';
 import SidebarShell from '@/components/Sidebar/SidebarShell';
 import { LOGO_URL } from '@/lib/constants';
 import "./globals.css";
@@ -37,15 +38,16 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Papel via helper único (item 9); e-mail é best-effort para o rodapé da sidebar.
-  const role = await getMyRole();
-  const isAdmin = role === 'admin' || role === 'editor';
+  // E-mail é best-effort para o rodapé da sidebar.
   let userEmail: string | undefined;
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    userEmail = user?.email;
-  } catch {}
+  if (DEV_AUTH_BYPASS) {
+    userEmail = 'dev@local';
+  } else {
+    try {
+      const session = await auth();
+      userEmail = session?.user?.email ?? undefined;
+    } catch {}
+  }
 
   return (
     <html
@@ -64,9 +66,11 @@ export default async function RootLayout({
         />
       </head>
       <body suppressHydrationWarning>
-        <SidebarShell isAdmin={isAdmin} userEmail={userEmail}>
-          {children}
-        </SidebarShell>
+        <AuthProvider>
+          <SidebarShell userEmail={userEmail}>
+            {children}
+          </SidebarShell>
+        </AuthProvider>
       </body>
     </html>
   );
