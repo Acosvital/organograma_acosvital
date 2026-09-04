@@ -52,7 +52,10 @@ const OVERVIEW_VB: ViewBox = { x: -540, y: -540, w: 1080, h: 1080 };
 const SECTOR_VB: ViewBox = { x: -1100, y: -1100, w: 2200, h: 2200 };
 const MIN_W_OV = 300;
 const MAX_W_OV = 1500;
-const MIN_W_SC = 400;
+// Reduzido de 400: cargos nos anéis mais externos (nível 11/12) têm o menor
+// raio de nó (ver SECTOR_NODE_RADIUS em radialLayout.ts) — sem isso, dava pra
+// chegar perto o bastante pros cards do centro mas não pros da borda.
+const MIN_W_SC = 150;
 const MAX_W_SC = 6000; // ring 8 radius=1590 → full diameter ~3400; allow zooming out further
 const CULL_MARGIN = 120;
 const SPINE_R = 430; // Management ring sits on the sector ring (r=430)
