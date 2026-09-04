@@ -6,7 +6,8 @@
  * Nível 2  = Setor (nó estrutural, isSector=true)
  * Nível 3  = Sub-setor (nó estrutural, isSector=true, sempre nível 3)
  * Nível 4  = Diretor de Setor (pessoa, parentId=setor)
- * Níveis 5–11 = cargos dentro de setores, em ordem decrescente de senioridade
+ * Níveis 5–12 = cargos dentro de setores, em ordem decrescente de senioridade
+ * (dicionário de 13 níveis — ver docs/organograma-hierarquia-schema.md)
  */
 export const levelNames: Record<number, string> = {
   0:  'Diretoria',
@@ -20,7 +21,8 @@ export const levelNames: Record<number, string> = {
   8:  'Líder de Equipe',
   9:  'Analista / Técnico',
   10: 'Assistente / Auxiliar',
-  11: 'Aprendiz',
+  11: 'Auxiliar / Estagiário',
+  12: 'Aprendiz',
 };
 
 export const levelColors: Record<number, string> = {
@@ -36,4 +38,5 @@ export const levelColors: Record<number, string> = {
   9:  '#10b981',  // emerald
   10: '#14b8a6',  // teal
   11: '#06b6d4',  // cyan
+  12: '#94a3b8',  // slate (nível mais júnior)
 };

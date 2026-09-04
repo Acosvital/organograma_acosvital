@@ -10,14 +10,15 @@ export const OVERVIEW_RING_RADII: Record<number, number> = {
 // ── Sector detail ring radii (BFS depth from sector node) ─────────────
 export const SECTOR_RING_RADII: Record<number, number> = {
   0: 0,     // sector card (center)
-  1: 150,   // Diretor de Setor  (level 4)
-  2: 300,   // Gerente de Setor  (level 5)
-  3: 475,   // Coordenadores     (level 6)
-  4: 665,   // Supervisores      (level 7)
-  5: 875,   // Líderes           (level 8)
-  6: 1105,  // Analistas         (level 9)
-  7: 1345,  // Assistentes       (level 10)
-  8: 1590,  // Aprendizes        (level 11)
+  1: 150,   // Diretor de Setor       (level 4)
+  2: 300,   // Gerente de Setor       (level 5)
+  3: 475,   // Coordenadores          (level 6)
+  4: 665,   // Supervisores           (level 7)
+  5: 875,   // Líderes                (level 8)
+  6: 1105,  // Analistas              (level 9)
+  7: 1345,  // Assistentes            (level 10)
+  8: 1590,  // Auxiliares/Estagiários (level 11)
+  9: 1845,  // Aprendizes             (level 12)
 };
 
 // ── Node visual radii for overview ────────────────────────────────────
@@ -28,15 +29,23 @@ export const OVERVIEW_NODE_RADIUS: Record<number, number> = {
 };
 
 // ── Node visual radii for sector detail (keyed by BFS depth) ──────────
+// Progressão geométrica: cada nível de depth 1 (Diretor de Setor) a 9
+// (Aprendiz) encolhe pela mesma razão constante — nunca um "degrau"
+// manual fora do padrão entre dois níveis vizinhos.
+const SECTOR_CARD_RADIUS = 52;      // depth 0 — sector card ao centro
+const DIRECTOR_RADIUS = 38;         // depth 1 — Diretor de Setor (level 4)
+const APPRENTICE_RADIUS = 15;       // depth 9 — Aprendiz         (level 12)
+const PERSON_DEPTH_STEPS = 8;       // depth 1 → depth 9 (8 razões aplicadas)
+const PERSON_RADIUS_RATIO = Math.pow(APPRENTICE_RADIUS / DIRECTOR_RADIUS, 1 / PERSON_DEPTH_STEPS);
+
 export const SECTOR_NODE_RADIUS: Record<number, number> = {
-  0: 52,  // sector card at center
-  1: 38,  // gerente de setor
-  2: 30,  // coordenadores
-  3: 25,  // supervisores
-  4: 21,  // líderes
-  5: 18,  // analistas
-  6: 15,  // assistentes
-  7: 12,  // aprendizes
+  0: SECTOR_CARD_RADIUS,
+  ...Object.fromEntries(
+    Array.from({ length: PERSON_DEPTH_STEPS + 1 }, (_, i) => [
+      i + 1,
+      Math.round(DIRECTOR_RADIUS * PERSON_RADIUS_RATIO ** i),
+    ]),
+  ),
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -367,10 +376,14 @@ export function calculateEvenSectorLayout(
   // `effLevel` combina profundidade real na árvore com o campo `level` bruto:
   // effLevel(filho) = max(level bruto do filho, effLevel(pai) + 1).
   // Isso corrige dois problemas de dado ao mesmo tempo:
-  //  • level não incrementado de pai pra filho (ex.: "Aprendiz" salvo com o
-  //    mesmo level do próprio superior "Auxiliar") — o piso `effLevel(pai)+1`
+  //  • level não incrementado de pai pra filho — o piso `effLevel(pai)+1`
   //    garante que o filho nunca cai no mesmo anel do pai, mesmo com level
-  //    igual ou menor no cadastro.
+  //    igual ou menor no cadastro. Motivo histórico (2026-09): a view do
+  //    banco cortava nível 12 (Aprendiz) pra 11, o mesmo nível do próprio
+  //    superior (Auxiliar/Estagiário) — corrigido na causa raiz pelo
+  //    contrato em docs/organograma-hierarquia-schema.md. O piso continua
+  //    aqui como rede de segurança (não faz nada quando o dado já vem
+  //    certo), não é mais o motivo real de ninguém cair no mesmo anel do pai.
   //  • irmãos "achatados" direto no setor com levels bem diferentes (ex.:
   //    Gerente de Marketing nível 5 e Auxiliar de Marketing nível 11, ambos
   //    com parentId = setor, sem relação de pai/filho entre si) — usar só a
