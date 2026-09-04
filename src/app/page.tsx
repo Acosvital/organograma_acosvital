@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation';
 import { requireAuth } from '@/lib/apiAuth';
-import { getUnidadesList } from '@/lib/data/unidades';
+import { getUnidadesList, resolveFotoUrl } from '@/lib/data/unidades';
 import { getFuncionariosEnriched } from '@/lib/data/adminFuncionarios';
 import { getOrgNodes } from '@/lib/data/org';
-import { getOrganogramaCardConfigs } from '@/lib/data/organogramaCards';
 import { mergeDirectors } from '@/utils/mergeDirectors';
 import type { Unidade } from '@/types/adminCore';
 import type { PositionedNode } from '@/types/orgChart';
@@ -23,9 +22,9 @@ interface EnrichedFuncionario {
 
 /** Combina os 2 gerentes de uma unidade num único nó — o nome fica "A & B" e
  *  o CenterCard desenha o círculo dividido, cada um com sua própria foto.
- *  Quando a unidade tem uma imagem de empresa configurada (Administrar →
- *  Cadastrar unidades), ela substitui a(s) foto(s) do(s) gerente(s) no
- *  círculo — o nome deles continua aparecendo embaixo do card normalmente. */
+ *  Quando a unidade tem `foto_url` cadastrada (tela de Unidades do av-hub),
+ *  ela substitui a(s) foto(s) do(s) gerente(s) no círculo — o nome deles
+ *  continua aparecendo embaixo do card normalmente. */
 function buildNode(id: string, role: string, pessoas: EnrichedFuncionario[], cardImageUrl?: string): PositionedNode | null {
   if (pessoas.length === 0) return null;
   const ordenadas = [...pessoas].sort((a, b) =>
@@ -72,10 +71,6 @@ export default async function Home() {
     redirect('/login?next=%2F');
   }
 
-  // Independente da API externa (Acosvital) — mora no S3/SeaweedFS, então
-  // continua funcionando mesmo se a API de organograma estiver fora do ar.
-  const cardConfigs = await getOrganogramaCardConfigs();
-
   let unidades: Unidade[] = [];
   let funcionarios: EnrichedFuncionario[] = [];
   let directorsNode: PositionedNode | null = null;
@@ -105,9 +100,9 @@ export default async function Home() {
       unidade.id,
       unidade.nome_fantasia,
       funcionarios.filter(f => f.codigo_empresa === unidade.id && f.cargo_nvl === 1),
-      cardConfigs[unidade.id]?.imageUrl ?? undefined,
+      resolveFotoUrl(unidade.foto_url),
     ),
-    cardColor: cardConfigs[unidade.id]?.color ?? null,
+    cardColor: unidade.cor_unidade,
   }));
 
   return (

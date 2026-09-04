@@ -49,6 +49,10 @@ export interface Unidade {
   cep: string;
   /** Posição de exibição na fileira de unidades do organograma geral (menor primeiro). */
   ordem_exibicao: number | null;
+  /** Cor do card desta unidade no organograma geral, hex #RRGGBB. NULL = cor padrão do nível. */
+  cor_unidade: string | null;
+  /** Key do objeto no bucket "empresa" do S3, ou já uma URL completa — ver resolveFotoUrl() em lib/data/unidades.ts. NULL = sem imagem cadastrada. */
+  foto_url: string | null;
   id_origem: string | null;
   created_at: string;
   updated_at: string;
