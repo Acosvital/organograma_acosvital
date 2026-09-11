@@ -13,14 +13,22 @@ import {
   SECTOR_RING_RADII,
   calculateConnections,
   calculateEvenSectorLayout,
+  debugWedges,
   getSubtree,
 } from "@/utils/radialLayout";
 import { colorGradientId, radiusClipId } from "@/utils/svgDefs";
 import { mergeDirectors } from "@/utils/mergeDirectors";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
+import { hasPermission } from "@/lib/permissions";
 import styles from "./OrgChart.module.css";
 import OrgTreeView from "./OrgTreeView";
 import SpaceBackground from "@/components/Globe/SpaceBackground";
+
+// Tela cadastrada na árvore de permissões do Aços Hub (mesmo mecanismo de
+// `organograma-clientes`, ver src/lib/apiAuth.ts) — só quem tiver
+// `pode_visualizar` nessa tela (perfil Admin) vê o botão de fatias de debug.
+const DEBUG_WEDGES_SCREEN_ID = "organograma-debug-fatias";
 
 // Raios possíveis de node/sector cards (conjunto pequeno e fixo, por nível/BFS-depth)
 // — usado para gerar os <clipPath> compartilhados das fotos (ver <defs> do SVG).
@@ -67,6 +75,25 @@ const SEC_ORB_R = 50; // orbit radius around each sector node
 const ORB_BLUE = "#5B9DD4"; // medium blue — line color
 const ORB_TIP = "#A8D4F0"; // light sky blue — alive flowing tip
 const ORB_NAVY = "#081336"; // deep navy — depth layer
+
+// ── DEBUG: fatia angular (temporário — ver comentário em debugWedges) ───
+function debugWedgeColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return `hsl(${hash % 360}, 75%, 55%)`;
+}
+function debugWedgePath(innerR: number, outerR: number, a1: number, a2: number): string {
+  const p = (r: number, a: number) => `${r * Math.cos(a)} ${r * Math.sin(a)}`;
+  const large = a2 - a1 > Math.PI ? 1 : 0;
+  return [
+    `M ${p(innerR, a1)}`,
+    `L ${p(outerR, a1)}`,
+    `A ${outerR} ${outerR} 0 ${large} 1 ${p(outerR, a2)}`,
+    `L ${p(innerR, a2)}`,
+    `A ${innerR} ${innerR} 0 ${large} 0 ${p(innerR, a1)}`,
+    "Z",
+  ].join(" ");
+}
 
 export default function OrgChart({
   positions,
@@ -137,6 +164,16 @@ export default function OrgChart({
   // hardware de verdade).
   const [physicalKeyboardActive, setPhysicalKeyboardActive] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
+
+  // DEBUG: fatias angulares (packGroup) — visível só pra quem tem
+  // pode_visualizar na tela DEBUG_WEDGES_SCREEN_ID (perfil Admin no Aços Hub).
+  const { data: session } = useSession();
+  const canSeeDebugWedges = hasPermission(
+    session?.user?.menu ?? [],
+    DEBUG_WEDGES_SCREEN_ID,
+    "pode_visualizar",
+  );
+  const [showDebugWedges, setShowDebugWedges] = useState(false);
 
   const minW = activeSectorId ? MIN_W_SC : MIN_W_OV;
   const maxW = activeSectorId ? MAX_W_SC : MAX_W_OV;
@@ -263,7 +300,8 @@ export default function OrgChart({
       subtree, activeSectorId, SECTOR_RING_RADII, SECTOR_NODE_RADIUS, subSectorRing,
     );
     const conn = calculateConnections(pos);
-    return { pos, conn, hubManagerId };
+    const wedges = [...debugWedges]; // DEBUG: snapshot das fatias angulares desta renderização
+    return { pos, conn, hubManagerId, wedges };
   }, [activeSectorId, mergedNodes]);
 
   // Animate viewBox when switching views — fit to content for sector detail
@@ -1744,6 +1782,22 @@ export default function OrgChart({
                 ))}
               </defs>
 
+              {/* DEBUG: fatias angulares (packGroup) — só Admin, via botão nos controles */}
+              {activeSectorId &&
+                showDebugWedges &&
+                canSeeDebugWedges &&
+                sectorDetail?.wedges.map((w) => (
+                  <path
+                    key={`wedge-${w.id}`}
+                    d={debugWedgePath(w.innerR, w.outerR, w.angle - w.half, w.angle + w.half)}
+                    fill={debugWedgeColor(w.id)}
+                    fillOpacity={0.22}
+                    stroke={debugWedgeColor(w.id)}
+                    strokeOpacity={0.6}
+                    strokeWidth={1}
+                  />
+                ))}
+
               {/* Ring guides */}
               {activeSectorId
                 ? sectorRingGuides.map(({ r, level }) => (
@@ -1969,6 +2023,15 @@ export default function OrgChart({
             <button className={styles.btn} onClick={zoomOut} title="Afastar">
               −
             </button>
+            {activeSectorId && canSeeDebugWedges && (
+              <button
+                className={`${styles.btn} ${showDebugWedges ? styles.btnActive : ""}`}
+                onClick={() => setShowDebugWedges((v) => !v)}
+                title="Fatias angulares (debug)"
+              >
+                ◐
+              </button>
+            )}
           </div>
 
           {/* ── Mini-mapa (apenas no panorama) ──────────────────────────── */}
