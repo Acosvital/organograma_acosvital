@@ -6,6 +6,8 @@
 
 Complementa [`organograma-hierarquia-schema.md`](./organograma-hierarquia-schema.md) (contrato já implementado, que tornou `core_organograma.node` um override opcional lido via `LEFT JOIN ... AND ov.deleted_at IS NULL`).
 
+> **Correção (2026-09-11, mesmo dia):** a seção 1 original pedia `UPDATE ... SET deleted_at = NULL` pra "destravar" os 26 ids. **Isso estava errado e já foi executado** — o DBA rodou o UPDATE e ele reviveu as linhas com o `parent_id` antigo intacto (o valor corrompido de antes da limpeza), porque limpar `deleted_at` não zera `parent_id`. Resultado: o desequilíbrio voltou (Rodrigo Pequeno da Cunha, um dos líderes da Expedição, ficou de novo com 10 pessoas reportando direto a ele). A seção 1 abaixo foi corrigida pra pedir um **hard delete** de verdade dessas 26 linhas — é isso que precisa ser rodado agora pra desfazer o revive e voltar ao estado correto (automático).
+
 ## Problema
 
 `DELETE /organograma_nodes/{id}` faz **soft delete** (marca `deleted_at`, não remove a linha). Isso é transparente pra `vw_org_nodes` — a view já ignora linhas com `deleted_at IS NOT NULL` no `LEFT JOIN`, então a pessoa cai de volta no cálculo automático (`fn_default_parent_pessoa`) corretamente.
@@ -60,11 +62,10 @@ Um deles (`87483ec1-...`, Peterson Clayton Marques) já foi reportado em produç
 
 ---
 
-## 1. Remediação imediata — destravar os 26 ids acima
+## 1. Remediação imediata — apagar de vez as 26 linhas acima
 
 ```sql
-UPDATE core_organograma.node
-SET deleted_at = NULL
+DELETE FROM core_organograma.node
 WHERE id IN (
   'f9cd7700-833e-4d6d-beec-63871879649c',
   'dc6e3d69-09b1-4965-ab35-e82ade846006',
@@ -96,7 +97,9 @@ WHERE id IN (
 );
 ```
 
-**Efeito colateral esperado: nenhum.** Como a view já ignora linhas com `deleted_at` preenchido, essas 26 pessoas já estão caindo no cálculo automático agora mesmo — limpar `deleted_at` só as tira do estado "travado", não muda o `parent_id` efetivo delas em nada (a próxima pessoa que definir um "Reporta a" pra alguma delas é que vai efetivamente sobrescrever o valor).
+**Por que apagar de verdade em vez de só destravar:** as 26 linhas carregam o `parent_id` **antigo e corrompido** (resultado do bug já corrigido em `recomputeSectorHierarchy`, ver commit `ea63f87` do av-hub). Só limpar `deleted_at` reativa esse valor antigo como override válido de novo — foi exatamente esse erro que aconteceu na primeira tentativa (ver nota no topo deste documento). Removendo a linha inteira, não sobra `parent_id` nenhum pra reativar: a pessoa cai limpa no cálculo automático (`fn_default_parent_pessoa`), que é o comportamento correto.
+
+**Efeito colateral esperado: nenhum outra pessoa é afetada.** Cada linha some individualmente; ninguém mais tem override apontando pra essas 26 (confirmado antes de escrever este contrato).
 
 ---
 
