@@ -1,5 +1,20 @@
 import { OrgNode, PositionedNode, Connection } from '@/types/orgChart';
 
+// ── DEBUG: fatias angulares (temporário — visualização de packGroup) ────
+// Populado a cada chamada de calculateEvenSectorLayout com o orçamento
+// angular (`angle` ± `half`) que cada nó recebeu pro seu próprio leque de
+// filhos. Só pra entender/depurar visualmente o empacotamento — não é
+// usado por nenhuma lógica de produção.
+export interface DebugWedge {
+  id: string;
+  name: string;
+  angle: number;
+  half: number;
+  innerR: number;
+  outerR: number;
+}
+export const debugWedges: DebugWedge[] = [];
+
 // ── Overview ring radii (used for the 3-level initial view) ────────────
 export const OVERVIEW_RING_RADII: Record<number, number> = {
   0: 0,    // Diretoria (center)
@@ -257,12 +272,20 @@ export function calculateEvenSectorLayout(
   const START = -Math.PI / 2;
   const PI2   = 2 * Math.PI;
   const MIN_GAP_BASE      = 6;   // min gap between node edges in ring mode (scaled dynamically)
-  const RING_ANG_GAP = 60;  // folga angular entre nós vizinhos em anéis esparsos (mais "disposto")
+  const RING_ANG_GAP = 80;  // folga angular entre nós vizinhos em anéis esparsos (mais "disposto")
   // Rótulo (nome + cargo) abaixo do círculo é bem mais largo que o próprio círculo;
   // usar só o diâmetro do nó para espaçamento faz labels vizinhos se sobreporem em
-  // anéis com muita gente. Estimativa de largura do rótulo renderizado.
-  const LABEL_FOOTPRINT_PX = 100;
-  const RADIAL_GAP_BASE   = 50;  // folga radial base entre anéis (scaled dynamically)
+  // anéis com muita gente. Estimativa de largura do rótulo renderizado — cargo
+  // truncado em 22 caracteres (ver NodeCard.tsx) já chega perto de 130px no
+  // tamanho de fonte usado, então 100 deixava rótulos vizinhos colarem (ex.:
+  // "Conferente" perto de irmãos no mesmo anel — ver Expedição/Danillo V.).
+  const LABEL_FOOTPRINT_PX = 130;
+  // Passo radial FIXO entre um anel e o seguinte — igual pra qualquer par de
+  // níveis vizinhos. Cobre o pior caso (raio de nó + rótulo abaixo dele nos
+  // anéis mais internos, onde os círculos são maiores — ver SECTOR_NODE_RADIUS)
+  // pra nunca sobrepor, mesmo nos anéis mais externos onde os nós são bem
+  // menores e sobraria folga de propósito.
+  const RING_STEP_BASE    = 130;  // (scaled dynamically)
   const LEVEL_BASE   = 3;   // visualR lookup: nodeRadii[level − LEVEL_BASE]
   const MAX_RING_R   = 1600; // raio máx. de um anel em modo anel; acima disso → modo coluna (40k)
   // Mesmo sem estourar MAX_RING_R, um anel com muita gente vira um círculo
@@ -275,7 +298,6 @@ export function calculateEvenSectorLayout(
   // Nome + cargo abaixo do círculo ocupam ~40px de altura; sem isso, linhas
   // consecutivas de uma coluna ficam com o rótulo sobreposto ao próximo nó.
   const LABEL_HEIGHT_PX = 40;
-  const COL_GAP_PX   = 80;  // gap between innermost column row and parent ring
   const MIN_COL_ANG  = (6  * Math.PI) / 180; // minimum 6° between columns
   const MAX_COL_ANG  = (14 * Math.PI) / 180; // maximum 14° between columns
 
@@ -288,7 +310,7 @@ export function calculateEvenSectorLayout(
   };
   // SectorCard (setor central e cards de subsetor) desenha anéis decorativos
   // (glow, tracejado, borda) além do raio "nu" — sem contar essa folga extra
-  // aqui, o RADIAL_GAP calculado é comido pelos próprios anéis decorativos e
+  // aqui, o passo radial calculado é comido pelos próprios anéis decorativos e
   // o card parece colado no vizinho mesmo com folga "correta" no papel. Só
   // usado nos cálculos de espaçamento; o raio REALMENTE renderizado
   // (visualR, abaixo) continua o mesmo — isso não infla o card, só o respiro
@@ -343,10 +365,20 @@ export function calculateEvenSectorLayout(
   // pai, com a largura de cada irmão proporcional ao seu leafWeight —
   // cumulativo, então nunca há sobreposição entre irmãos por construção.
   // `avail` é o MEIO-orçamento reservado do próprio pai (herdado de quando
-  // o pai foi posicionado, não a distância até o vizinho): como o peso do
-  // pai já é a soma recursiva do peso de todos os filhos, a largura total
-  // pedida pelos filhos bate exatamente com o que o pai reservou — por
-  // isso o leque cabe sem precisar comprimir depois, em qualquer anel.
+  // o pai foi posicionado, não a distância até o vizinho). Na maioria dos
+  // anéis a largura pedida pelos filhos bate com o que o pai reservou, mas
+  // isso não é garantido: `2 * minHalf` (o piso físico de cada nó — raio +
+  // rótulo + respiro) pode sozinho já somar mais que `2 * avail` quando o
+  // pai herdou uma fatia estreita (vários níveis de ramos com poucos
+  // descendentes, cada um afunilando o orçamento do próximo). Comprimir
+  // proporcionalmente NESSE caso (como este código fazia antes) empurra a
+  // largura de cada filho abaixo do próprio piso físico — nós que deveriam
+  // nunca se tocar passam a se sobrepor (caso real: 6 auxiliares sob um
+  // único assistente, 3 níveis de ramos estreitos acima dele, ver
+  // Expedição/Gabriel Santos Andrade). Por isso o piso nunca é comprimido
+  // abaixo de si mesmo — o grupo transborda o orçamento herdado antes de
+  // sobrepor um irmão ao outro; só o excedente (`2*avail` menos a soma dos
+  // pisos) é distribuído por peso.
   // Retorna {node, angle, half} — `half` é repassado como o `avail` do
   // próprio filho quando ele por sua vez vira pai no anel seguinte.
   function packGroup(
@@ -356,12 +388,12 @@ export function calculateEvenSectorLayout(
     minHalf: number,
   ): Array<{ node: OrgNode; angle: number; half: number }> {
     if (grp.length === 0) return [];
+    const floor = 2 * minHalf;
+    const totalFloor = grp.length * floor;
+    const extra = Math.max(0, 2 * avail - totalFloor);
     const weights = grp.map((n) => leafWeight(n.id));
     const totalW = weights.reduce((s, w) => s + w, 0) || 1;
-    const rawWidths = weights.map((w) => Math.max(2 * minHalf, (w / totalW) * (2 * avail)));
-    const span = rawWidths.reduce((s, w) => s + w, 0);
-    const scale = avail > 0 && span > 2 * avail ? (2 * avail) / span : 1;
-    const widths = rawWidths.map((w) => w * scale);
+    const widths = weights.map((w) => floor + (w / totalW) * extra);
     const fullSpan = widths.reduce((s, w) => s + w, 0);
     let cursor = -fullSpan / 2;
     return grp.map((node, i) => {
@@ -451,36 +483,40 @@ export function calculateEvenSectorLayout(
   // setores grandes ganham fôlego sem saltos bruscos.
   const spacingScale    = Math.max(1.0, Math.sqrt(totalVisible / LARGE_SECTOR));
   const MIN_GAP         = MIN_GAP_BASE * spacingScale;
-  const RADIAL_GAP      = RADIAL_GAP_BASE * spacingScale;
+  const RING_STEP       = RING_STEP_BASE * spacingScale;
 
   // ── Dynamic ring radius ──
   // Em modo esparso (poucos nós por anel) os anéis são empilhados de forma COMPACTA:
-  // cada anel nasce logo após a borda do anterior (RADIAL_GAP), em vez de usar os
+  // cada anel nasce um passo fixo (RING_STEP) depois do anterior, em vez de usar os
   // raios estáticos grandes (150, 300, 475…) que deixam vãos enormes quando há pouca
   // gente. Quando um anel tem muitos nós, o raio cresce o suficiente para todos
-  // caberem em volta (minR) — preservando o comportamento de setores grandes.
+  // caberem em volta (minR) — preservando o comportamento de setores grandes. O passo
+  // é o mesmo entre qualquer par de anéis vizinhos — não soma o raio visual do nó
+  // (que encolhe a cada nível, ver SECTOR_NODE_RADIUS), senão o espaçamento
+  // aparente varia dependendo de quais níveis são vizinhos.
   const dynamicRingR = new Map<number, number>();
   const centerVR = (nodeRadii[0] ?? 52) + SECTOR_CARD_DECOR_PAD; // o próprio setor é sempre um SectorCard
-  let prevOuter  = centerVR;  // borda externa do anel anterior (começa no card central)
+  let prevR = centerVR;  // raio do anel anterior (começa no raio do card central)
   [...ringCollect.keys()].sort((a, b) => a - b).forEach((ring) => {
     const ringNodes = ringCollect.get(ring)!;
-    const maxVR = Math.max(...ringNodes.map((n) => spacingR(n)));
     if (fitsAround(ringNodes)) {
-      const minR     = ringMinR(ringNodes);              // raio p/ caber em volta
-      const compactR = prevOuter + RADIAL_GAP + maxVR;   // colado ao anterior
-      const r = Math.max(minR, compactR);
+      const minR  = ringMinR(ringNodes);   // raio p/ caber em volta
+      const stepR = prevR + RING_STEP;     // passo fixo a partir do anel anterior
+      const r = Math.max(minR, stepR);
       dynamicRingR.set(ring, r);
-      prevOuter = r + maxVR;
+      prevR = r;
     } else {
       // Column mode — radius is computed per-parent at placement time
       const staticR = ringRadii[ring] ?? (ring * 200);
       dynamicRingR.set(ring, staticR);
-      prevOuter = staticR; // o outer real é recalculado no placement (outerRByRing)
+      prevR = staticR; // o outer real é recalculado no placement (outerRByRing)
     }
   });
 
   const result: PositionedNode[] = [];
   const angleOf = new Map<string, number>();
+  const nameById = new Map(nodes.map((n) => [n.id, n.name]));
+  debugWedges.length = 0;
 
   // ── Sector at center ──
   const sectorNode = nodes.find((n) => n.id === sectorId);
@@ -617,7 +653,10 @@ export function calculateEvenSectorLayout(
       // parent. Columns are centered on the parent's angle. The angle step
       // between adjacent columns adapts to the arc available per parent so
       // columns from different parents never overlap each other.
-      const baseR = prevOuterR + COL_GAP_PX;
+      // Mesmo passo fixo do modo anel (RING_STEP) — senão a transição
+      // ring-mode→column-mode (ex.: nível com >RING_GROUP_THRESHOLD pessoas)
+      // fica com um espaçamento diferente de qualquer outro par de anéis.
+      const baseR = prevOuterR + RING_STEP;
 
       const sortedParents = [...prevPlaced].sort((a, b) => norm(a.angle) - norm(b.angle));
       const M = sortedParents.length;
@@ -725,6 +764,12 @@ export function calculateEvenSectorLayout(
 
       outerRByRing.set(ring, localMaxR);
     }
+
+    const innerR = dynamicRingR.get(ring)!;
+    const outerR = dynamicRingR.get(ring + 1) ?? innerR + RING_STEP;
+    ringPlaced.forEach(({ id, angle, half }) => {
+      debugWedges.push({ id, name: nameById.get(id) ?? id, angle, half, innerR, outerR });
+    });
 
     placedByRing.set(ring, ringPlaced);
   });
