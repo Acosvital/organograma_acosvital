@@ -117,7 +117,7 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
     <div className={styles.page}>
       <SpaceBackground />
 
-      <div className={`${styles.content} ${fsMode !== 'none' ? styles.shifted : ''}`}>
+      <div className={`${styles.content} ${fsMode === 'totem' ? styles.shifted : ''}`}>
       <p className={styles.prompt}>Organograma — visão geral</p>
 
       {error && <p className={styles.status}>Não foi possível carregar os dados.</p>}

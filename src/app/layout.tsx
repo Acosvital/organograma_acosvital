@@ -27,6 +27,12 @@ const spaceGrotesk = Space_Grotesk({
 // Define o tema antes da primeira pintura para evitar flash de tema incorreto.
 const THEME_INIT = `(function(){try{var t=localStorage.getItem('theme');if(t==='light')document.documentElement.dataset.theme='light';}catch(e){}})();`;
 
+// Mesmo truque pro modo de quiosque (Totem/TV, ver src/lib/kioskMode.ts):
+// marca o <html> antes da primeira pintura pra que o CSS esconda o menu
+// completo enquanto o SidebarShell ainda não restaurou o modo — sem isso,
+// cada recarga na TV/totem mostrava por um instante o menu com perfil/Sair.
+const KIOSK_INIT = `(function(){try{var q=new URLSearchParams(location.search).get('modo');var m=q==='tv'||q==='totem'?q:(q==='off'||q==='none')?null:localStorage.getItem('organograma:kioskMode');if(m==='tv'||m==='totem')document.documentElement.dataset.kiosk=m;}catch(e){}})();`;
+
 export const metadata: Metadata = {
   title: "Organograma — Acos Vital",
   description: "Estrutura organizacional em formato radial",
@@ -57,6 +63,7 @@ export default async function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <script dangerouslySetInnerHTML={{ __html: KIOSK_INIT }} />
         {/* Fira Sans — fonte das labels geográficas no canvas do globo */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

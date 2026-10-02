@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { OrgNode } from '@/types/orgChart';
 import Avatar from '@/components/ui/Avatar';
 import OnScreenKeyboard from '@/components/OnScreenKeyboard/OnScreenKeyboard';
+import { normalizeSearch } from '@/lib/nodeUtils';
 import styles from './OrgTreeView.module.css';
 
 interface Props {
@@ -65,10 +66,10 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
   );
 
   const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalizeSearch(query.trim());
     if (!q) return null;
     return nodes
-      .filter((n) => `${n.name} ${n.role}`.toLowerCase().includes(q))
+      .filter((n) => normalizeSearch(`${n.name} ${n.role}`).includes(q))
       .slice(0, 200);
   }, [query, nodes]);
 
@@ -76,7 +77,9 @@ export default function OrgTreeView({ nodes, levelColors, levelNames, onSelect }
   useEffect(() => {
     if (!kbOpen) return;
     const onPointerDownOutside = (e: PointerEvent) => {
-      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) {
+      // composedPath (fixado no disparo) em vez de contains(): uma tecla do
+      // teclado virtual pode sair do DOM no meio do evento e parecer "fora".
+      if (searchWrapRef.current && !e.composedPath().includes(searchWrapRef.current)) {
         setKbOpen(false);
       }
     };

@@ -215,3 +215,64 @@
   font-weight: 700;
   color: var(--text-secondary);
 }
+
+/* ── Teclado virtual ─────────────────────────────────────────────────── */
+/* Campo + botão de teclado dentro dele, à direita. */
+.inputWrap {
+  position: relative;
+  display: flex;
+}
+
+.inputWrap .input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 48px;
+}
+
+.kbToggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kbToggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.kbToggle[data-on] {
+  background: rgba(249, 115, 22, 0.16);
+  color: #fdba74;
+}
+
+/* Campo sendo preenchido pelo teclado virtual: destaque laranja (o foco
+   azul padrão some quando o foco real fica no outro campo). */
+.inputKbActive,
+.inputKbActive:focus {
+  border-color: rgba(249, 115, 22, 0.7);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+}
+
+/* Teclado aberto: o cartão sobe pro topo pra não ficar atrás dele. */
+.pageKb {
+  align-items: flex-start;
+  padding-top: 32px;
+}
+
+.pageKb .card {
+  gap: 18px;
+}

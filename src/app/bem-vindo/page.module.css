@@ -1,12 +1,61 @@
-/* Gradiente padrão (marca Açosvital) — sobrescrito inline quando há um
-   preset ativo com cor_inicio/cor_fim próprios (ver page.tsx). */
+/* Fundo sobrescrito inline quando há um preset ativo com
+   cor_inicio/cor_fim próprios (ver page.tsx); sem isso vale .pageMarca. */
 .page {
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: linear-gradient(135deg, var(--brand) 0%, var(--accent) 100%);
+}
+
+/* Padrão: identidade Açosvital — navy profundo com luz laranja da marca
+   (mesma linguagem do login do Aços Hub e do dock do Modo Totem). Não
+   depende do tema claro/escuro: o logo é branco. */
+.pageMarca {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(60% 55% at 18% 8%, rgba(249, 115, 22, 0.32) 0%, transparent 70%),
+    radial-gradient(55% 50% at 92% 100%, rgba(194, 65, 12, 0.26) 0%, transparent 70%),
+    linear-gradient(160deg, #111a33 0%, #0c1327 45%, #020617 100%);
+}
+
+/* Linha fina laranja no topo — assinatura da marca. */
+.pageMarca::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #f97316 30%, #c2410c 70%, transparent);
+  opacity: 0.85;
+}
+
+.pageMarca .card {
+  position: relative;
+}
+
+.pageMarca .titleDot {
+  color: #f97316;
+}
+
+.pageMarca .btn {
+  background: linear-gradient(145deg, #f97316 0%, #c2410c 100%);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 10px 30px rgba(194, 65, 12, 0.45);
+}
+
+.pageMarca .btn:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 14px 36px rgba(194, 65, 12, 0.55);
+}
+
+.pageMarca .sub {
+  color: #cbd5e1;
 }
 
 .card {

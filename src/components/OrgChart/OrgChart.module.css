@@ -123,209 +123,328 @@
   -webkit-user-drag: none;
 }
 
-/* ── Legend ──────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════════
+ * Controles sobre o mapa — mesma linguagem do menu (navy em vidro + laranja
+ * da marca no que está ativo). Sempre na paleta escura: ficam sobre o
+ * espaço/estrelas, que não tem modo claro. Alvos de toque ≥ 44px (totem).
+ * ════════════════════════════════════════════════════════════════════════ */
+.wrapper {
+  --ov-bg: rgba(12, 19, 39, 0.82);
+  --ov-bg-strong: rgba(12, 19, 39, 0.94);
+  --ov-line: color-mix(in srgb, #ffffff 10%, transparent);
+  --ov-line-strong: color-mix(in srgb, #ffffff 16%, transparent);
+  --ov-text: #f5f8fc;
+  --ov-soft: #cbd5e1;
+  --ov-muted: #64748b;
+  --ov-hover: color-mix(in srgb, #ffffff 7%, transparent);
+  --ov-accent: #f97316;
+  --ov-accent-strong: #c2410c;
+  --ov-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
+  --ov-blur: blur(14px) saturate(150%);
+}
+
+/* ── Legenda (hierarquia) ────────────────────────────────────────────── */
 .legend {
   position: absolute;
   top: 20px;
   right: 20px;
   z-index: 10;
-  background: var(--bg-glass);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  min-width: 155px;
-  box-shadow: var(--shadow-glass);
+  width: 264px;
+  max-height: calc(100% - 200px);
+  overflow: hidden;
+  border: 1px solid var(--ov-line);
+  border-radius: 16px;
+  background: var(--ov-bg);
+  box-shadow: var(--ov-shadow);
+  backdrop-filter: var(--ov-blur);
+  -webkit-backdrop-filter: var(--ov-blur);
+  font-family: var(--font-sans);
+}
+
+.legendHeader {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px 10px 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.legendHeader:disabled {
+  cursor: default;
+}
+
+.legendHeader:focus-visible {
+  outline: 2px solid var(--ov-accent);
+  outline-offset: -2px;
+  border-radius: 16px;
 }
 
 .legendTitle {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 1px;
-}
-
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.legendDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.legendLabel {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
   flex: 1;
-}
-
-.legendCount {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: var(--hover-bg-strong);
-  border-radius: 6px;
-  padding: 1px 6px;
-  min-width: 24px;
-  text-align: center;
-}
-
-.legendTotal {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-top: 1px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.legendTotal strong {
-  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ov-muted);
+  font-size: 10.5px;
   font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.legendHint {
+.legendTotalChip {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ov-accent) 16%, transparent);
+  color: #fdba74;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.legendTotalChip span {
+  color: color-mix(in srgb, #fdba74 70%, transparent);
+  font-weight: 500;
+}
+
+.legendChevron {
+  flex-shrink: 0;
+  color: var(--ov-muted);
+  transition: transform 0.2s ease;
+}
+
+.legend[data-open='false'] .legendChevron {
+  transform: rotate(-90deg);
+}
+
+.legendList {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  margin: 0;
+  padding: 0 8px 10px;
+  overflow-y: auto;
+  list-style: none;
+  border-top: 1px solid var(--ov-line);
   padding-top: 8px;
-  border-top: 1px solid var(--border-subtle);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ov-muted) 50%, transparent) transparent;
 }
 
-.legendHint span {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  color: var(--text-muted);
+.legendItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px 8px;
+  border-radius: 8px;
 }
 
-/* ── Zoom Controls ───────────────────────────────────────────────────── */
-.controls {
+.legendDot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 0%, transparent);
+}
+
+.legendLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ov-text);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.legendCount {
+  flex-shrink: 0;
+  color: var(--ov-soft);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Barrinha proporcional à quantidade de pessoas no nível. */
+.legendBar {
+  position: absolute;
+  left: 26px;
+  bottom: 3px;
+  max-width: calc(100% - 34px);
+  height: 2px;
+  border-radius: 2px;
+  opacity: 0.55;
+}
+
+.legendFoot {
+  margin-top: 4px;
+  padding: 8px 8px 0;
+  border-top: 1px solid var(--ov-line);
+  color: var(--ov-muted);
+  font-size: 11px;
+}
+
+/* ── Dica de gestos (some no primeiro toque) ─────────────────────────── */
+.hint {
   position: absolute;
   bottom: 28px;
-  right: 28px;
+  left: 50%;
+  z-index: 10;
+  transform: translateX(-50%);
+  padding: 9px 16px;
+  border: 1px solid var(--ov-line);
+  border-radius: 999px;
+  background: var(--ov-bg);
+  box-shadow: var(--ov-shadow);
+  backdrop-filter: var(--ov-blur);
+  -webkit-backdrop-filter: var(--ov-blur);
+  color: var(--ov-soft);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: hintIn 0.5s ease 0.6s both;
+}
+
+@keyframes hintIn {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ── Controles de zoom ───────────────────────────────────────────────── */
+.controls {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
 }
 
-.btn {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  border: 1px solid var(--border-light);
-  background: var(--bg-glass);
-  color: var(--text-secondary);
-  font-size: 22px;
-  font-weight: 600;
-  cursor: pointer;
+.zoomGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--ov-line);
+  border-radius: 16px;
+  background: var(--ov-bg);
+  box-shadow: var(--ov-shadow);
+  backdrop-filter: var(--ov-blur);
+  -webkit-backdrop-filter: var(--ov-blur);
+}
+
+.zoomBtn,
+.homeBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--ease-fast), color var(--ease-fast), border-color var(--ease-fast), transform 0.1s;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  width: 52px;
+  height: 52px;
   padding: 0;
-  line-height: 1;
-  box-shadow: var(--shadow-glass);
+  border: none;
+  background: none;
+  color: var(--ov-soft);
+  font-size: 20px;
+  cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease, opacity 0.2s ease;
 }
 
-.btn:hover {
-  background: rgba(59, 130, 246, 0.22);
-  border-color: rgba(59, 130, 246, 0.45);
-  color: #93c5fd;
+.zoomBtn:hover:not(:disabled),
+.homeBtn:hover {
+  background: var(--ov-hover);
+  color: var(--ov-text);
 }
 
-.btn:active {
-  background: rgba(59, 130, 246, 0.35);
-  border-color: rgba(59, 130, 246, 0.6);
-  color: #bfdbfe;
+.zoomBtn:active:not(:disabled) {
+  background: color-mix(in srgb, var(--ov-accent) 22%, transparent);
+  color: #fdba74;
+}
+
+.zoomBtn:disabled {
+  color: color-mix(in srgb, var(--ov-muted) 60%, transparent);
+  cursor: default;
+}
+
+.zoomBtn:focus-visible,
+.homeBtn:focus-visible {
+  outline: 2px solid var(--ov-accent);
+  outline-offset: -2px;
+}
+
+.zoomPct {
+  width: 100%;
+  padding: 6px 0;
+  border-top: 1px solid var(--ov-line);
+  border-bottom: 1px solid var(--ov-line);
+  color: var(--ov-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Centralizar: botão redondo à parte; aceso em laranja quando a câmera saiu
+   da visão inicial (é quando ele serve pra alguma coisa). */
+.homeBtn {
+  border: 1px solid color-mix(in srgb, var(--ov-accent) 55%, transparent);
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--ov-accent) 0%, var(--ov-accent-strong) 100%);
+  color: #fff;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--ov-accent-strong) 45%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.homeBtn:hover {
+  background: linear-gradient(145deg, #fb923c 0%, var(--ov-accent-strong) 100%);
+  color: #fff;
+}
+
+.homeBtn:active {
   transform: scale(0.92);
 }
 
-.btn:focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.6);
-  outline-offset: 2px;
+.homeBtnIdle {
+  border-color: var(--ov-line);
+  background: var(--ov-bg);
+  color: var(--ov-muted);
+  box-shadow: var(--ov-shadow);
+  backdrop-filter: var(--ov-blur);
+  -webkit-backdrop-filter: var(--ov-blur);
 }
 
-/* Estado ligado persistente (diferente de :hover/:active, que são só durante
-   a interação) — usado no toggle de fatias angulares de debug. */
+.homeBtnIdle:hover {
+  background: var(--ov-bg-strong);
+  color: var(--ov-soft);
+}
+
+/* Estado ligado persistente — toggle de fatias angulares de debug. */
 .btnActive {
-  background: rgba(59, 130, 246, 0.35);
-  border-color: rgba(59, 130, 246, 0.6);
-  color: #bfdbfe;
+  border-color: var(--ov-accent);
+  color: #fdba74;
 }
 
-/* ── Back button ─────────────────────────────────────────────────────── */
-.backBtn {
-  position: absolute;
-  bottom: 72px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--glass-bg);
-  border: 1px solid rgba(167, 139, 250, 0.28);
-  border-radius: 28px;
-  color: var(--text-secondary);
-  font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 600;
-  padding: 14px 28px;
-  cursor: pointer;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: background var(--ease-fast), border-color var(--ease-fast), color var(--ease-fast), transform 0.1s;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  animation: backBtnIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  min-height: 52px;
-}
-
-.backBtn:hover {
-  background: var(--hover-bg-strong);
-  border-color: rgba(167, 139, 250, 0.5);
-  color: var(--text-primary);
-  transform: translateX(calc(-50% - 2px));
-}
-
-.backBtn:active {
-  background: rgba(167, 139, 250, 0.18);
-  border-color: rgba(167, 139, 250, 0.6);
-  color: var(--text-primary);
-  transform: translateX(-50%) scale(0.96);
-}
-
-.backBtn:focus-visible {
-  outline: 2px solid rgba(167, 139, 250, 0.5);
-  outline-offset: 2px;
-}
-
-/* ── Sector title ────────────────────────────────────────────────────── */
+/* ── Título do setor ─────────────────────────────────────────────────── */
 .sectorTitle {
   position: absolute;
-  top: 20px;
+  /* Abaixo da barra (voltar/interruptor/busca), que ocupa o topo. */
+  top: 92px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -342,7 +461,7 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 2px;
-  color: rgba(167, 139, 250, 0.55);
+  color: color-mix(in srgb, #fb923c 70%, transparent);
   text-transform: uppercase;
 }
 
@@ -353,7 +472,7 @@
   color: var(--text-primary);
 }
 
-/* ── Toolbar: alternância de modo + busca ────────────────────────────── */
+/* ── Barra: voltar + interruptor Mapa/Lista + busca ──────────────────── */
 .toolbar {
   position: absolute;
   top: 20px;
@@ -365,158 +484,291 @@
   transition: left 280ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Tela cheia limpa: sidebar flutuante ocupa a faixa esquerda (12px + 68px) —
-   desloca a toolbar para não ficar coberta. */
+/* Modo Totem: o dock ocupa a faixa esquerda — desloca a barra. */
 .toolbar.shifted {
-  left: 100px;
+  left: 116px;
 }
 
-/* ── Voltar para seleção de unidades ─────────────────────────────────── */
-.unidadesBackLink {
+/* Voltar contextual: setor pai → visão geral → unidades. */
+.backPill {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--bg-glass);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  padding: 11px 16px;
-  color: var(--text-muted);
+  gap: 10px;
+  height: 52px;
+  padding: 0 18px 0 12px;
+  border: 1px solid var(--ov-line);
+  border-radius: 16px;
+  background: var(--ov-bg);
+  box-shadow: var(--ov-shadow);
+  backdrop-filter: var(--ov-blur);
+  -webkit-backdrop-filter: var(--ov-blur);
+  color: var(--ov-text);
   font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 600;
+  text-align: left;
   text-decoration: none;
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-glass);
-  transition: background var(--ease-fast), color var(--ease-fast);
-}
-.unidadesBackLink:hover {
-  background: var(--hover-bg-strong);
-  color: var(--text-primary);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  animation: pillIn 0.3s ease both;
 }
 
-.segmented {
+@keyframes pillIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.backPill:hover {
+  border-color: var(--ov-line-strong);
+  background: var(--ov-bg-strong);
+}
+
+.backPill:active {
+  transform: scale(0.97);
+}
+
+.backPill:focus-visible {
+  outline: 2px solid var(--ov-accent);
+  outline-offset: 2px;
+}
+
+.backIcon {
+  flex-shrink: 0;
+  box-sizing: content-box;
+  padding: 7px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ov-accent) 18%, transparent);
+  color: #fdba74;
+}
+
+.backText {
   display: flex;
-  background: var(--bg-glass);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  padding: 3px;
+  flex-direction: column;
   gap: 2px;
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-glass);
+  min-width: 0;
 }
 
-.segmented button {
-  border: none;
-  background: none;
-  color: var(--text-muted);
+.backEyebrow {
+  color: var(--ov-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.backTarget {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+/* Interruptor Mapa/Lista: um único controle; o "polegar" laranja desliza
+   pro lado ativo e qualquer toque alterna. */
+.viewSwitch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  height: 52px;
+  padding: 4px;
+  border: 1px solid var(--ov-line);
+  border-radius: 16px;
+  background: var(--ov-bg);
+  box-shadow: var(--ov-shadow);
+  backdrop-filter: var(--ov-blur);
+  -webkit-backdrop-filter: var(--ov-blur);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.viewSwitch:focus-visible {
+  outline: 2px solid var(--ov-accent);
+  outline-offset: 2px;
+}
+
+.viewThumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--ov-accent) 0%, var(--ov-accent-strong) 100%);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--ov-accent-strong) 45%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.viewSwitch[data-mode='tree'] .viewThumb {
+  transform: translateX(100%);
+}
+
+.viewSwitch:active .viewThumb {
+  filter: brightness(1.08);
+}
+
+.viewOpt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 16px;
+  color: var(--ov-muted);
   font-family: var(--font-sans);
   font-size: 14px;
   font-weight: 600;
-  padding: 11px 20px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--ease-fast), color var(--ease-fast), transform 0.1s;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  min-height: 44px;
-}
-.segmented button:hover { color: var(--text-primary); }
-.segmented button:active { transform: scale(0.95); }
-.segmented button[data-active='true'] {
-  background: var(--accent-bg);
-  color: var(--accent-text);
+  white-space: nowrap;
+  transition: color 0.2s ease;
 }
 
+.viewOpt[data-on='true'] {
+  color: #fff;
+}
+
+/* Busca */
 .searchBox {
   position: relative;
   display: flex;
   align-items: center;
-  width: 260px;
+  width: 320px;
 }
 
 .searchIcon {
   position: absolute;
-  left: 12px;
-  color: var(--text-muted);
+  left: 16px;
+  z-index: 1;
+  color: var(--ov-muted);
   pointer-events: none;
 }
 
 .searchInput {
   width: 100%;
-  padding: 13px 36px 13px 40px;
-  font-size: 15px;
-  font-family: var(--font-sans);
-  color: var(--text-primary);
-  background: var(--bg-glass);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
+  height: 52px;
+  padding: 0 44px 0 44px;
+  border: 1px solid var(--ov-line);
+  border-radius: 16px;
   outline: none;
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-glass);
-  transition: border-color var(--ease-fast), box-shadow var(--ease-fast);
+  background: var(--ov-bg);
+  box-shadow: var(--ov-shadow);
+  backdrop-filter: var(--ov-blur);
+  -webkit-backdrop-filter: var(--ov-blur);
+  color: var(--ov-text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.searchInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
-.searchInput::placeholder { color: var(--text-muted); }
+
+.searchInput:focus {
+  border-color: color-mix(in srgb, var(--ov-accent) 70%, transparent);
+  box-shadow: var(--ov-shadow), 0 0 0 4px color-mix(in srgb, var(--ov-accent) 18%, transparent);
+}
+
+.searchBox:focus-within .searchIcon {
+  color: #fdba74;
+}
+
+.searchInput::placeholder {
+  color: var(--ov-muted);
+}
 
 .searchClear {
   position: absolute;
-  right: 8px;
-  width: 20px;
-  height: 20px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: none;
-  background: var(--hover-bg-strong);
-  color: var(--text-secondary);
-  border-radius: var(--radius-full);
-  font-size: 14px;
+  border-radius: 50%;
+  background: var(--ov-hover);
+  color: var(--ov-soft);
+  font-size: 17px;
   line-height: 1;
   cursor: pointer;
 }
-.searchClear:hover { color: var(--text-primary); }
+
+.searchClear:hover {
+  background: color-mix(in srgb, #ffffff 12%, transparent);
+  color: var(--ov-text);
+}
 
 .searchResults {
   position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
+  top: calc(100% + 8px);
   right: 0;
-  list-style: none;
+  left: 0;
+  max-height: 340px;
   margin: 0;
-  padding: 5px;
-  background: var(--glass-bg-strong);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  box-shadow: var(--shadow-lg);
-  max-height: 320px;
+  padding: 6px;
   overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--ov-line);
+  border-radius: 16px;
+  background: var(--ov-bg-strong);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  backdrop-filter: var(--ov-blur);
+  -webkit-backdrop-filter: var(--ov-blur);
 }
 
 .searchResults button {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 11px;
   width: 100%;
-  padding: 7px 9px;
+  min-height: 48px;
+  padding: 8px 10px;
   border: none;
+  border-radius: 10px;
   background: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  text-align: left;
   font-family: var(--font-sans);
-  transition: background var(--ease-fast);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
 }
-.searchResults button:hover { background: var(--hover-bg); }
 
-.resultDot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.resultText { display: flex; flex-direction: column; min-width: 0; }
-.resultName {
-  font-size: 12.5px; font-weight: 600; color: var(--text-primary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.searchResults button:hover,
+.searchResults button:active {
+  background: var(--ov-hover);
 }
-.resultSub { font-size: 10.5px; color: var(--text-muted); }
+
+.resultDot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.resultText { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.resultName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ov-text);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.resultSub { color: var(--ov-muted); font-size: 11.5px; }
+
+@media (max-width: 1023px) {
+  .searchBox { width: 240px; }
+  .viewOpt { padding: 0 12px; }
+}
+
+@media (max-width: 767px) {
+  /* Fica ao lado do botão hamburguer do SidebarShell. */
+  .toolbar { left: 64px; right: 12px; top: 14px; gap: 8px; }
+  .backText { display: none; }
+  .backPill { padding: 0 6px; height: 44px; }
+  .viewSwitch { height: 44px; }
+  .viewOpt { padding: 0 8px; font-size: 0; gap: 0; }
+  .searchBox { flex: 1; width: auto; min-width: 0; }
+  .searchInput { height: 44px; }
+  .legend { top: auto; bottom: 16px; right: 12px; width: 200px; max-height: 45%; }
+  .controls { right: 12px; bottom: auto; top: 76px; }
+  .hint { display: none; }
+}
 
 /* ── Conexões com fluxo animado de partículas ────────────────────────── */
 .flowLine {
@@ -550,34 +802,72 @@
 }
 
 /* ── Mini-mapa ───────────────────────────────────────────────────────── */
+/* Só aparece com zoom (na visão inicial ele repetiria a tela) — entra e
+   sai com fade. Tocar/arrastar dentro move a câmera. */
 .minimap {
   position: absolute;
   bottom: 24px;
   left: 24px;
   z-index: 10;
-  width: 150px;
-  height: 150px;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--bg-glass);
-  border: 1px solid var(--border-light);
-  transition: left 280ms cubic-bezier(0.4, 0, 0.2, 1);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-glass);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 8px;
+  border: 1px solid var(--ov-line);
+  border-radius: 16px;
+  background: var(--ov-bg);
+  box-shadow: var(--ov-shadow);
+  backdrop-filter: var(--ov-blur);
+  -webkit-backdrop-filter: var(--ov-blur);
+  opacity: 0;
+  transform: translateY(10px) scale(0.96);
+  transform-origin: bottom left;
+  pointer-events: none;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease,
+    left 280ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Tela cheia limpa: sidebar flutuante ocupa a faixa esquerda — desloca o
-   mini-mapa para não ficar coberto. */
+.minimapVisible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* Modo Totem: o dock ocupa a faixa esquerda — desloca o mini-mapa. */
 .minimap.shifted {
-  left: 104px;
+  left: 120px;
 }
 
-.minimapSvg { display: block; width: 100%; height: 100%; cursor: pointer; }
+.minimapLabel {
+  color: var(--ov-muted);
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.minimapSvg {
+  display: block;
+  width: 140px;
+  height: 140px;
+  border-radius: 10px;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.04), transparent 70%);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.minimapRing {
+  fill: none;
+  stroke: color-mix(in srgb, #ffffff 10%, transparent);
+  stroke-dasharray: 2 3;
+}
 
 .minimapViewport {
-  fill: rgba(59, 130, 246, 0.14);
-  stroke: var(--accent-soft);
+  fill: color-mix(in srgb, #f97316 14%, transparent);
+  stroke: #fb923c;
   stroke-width: 1.5;
 }
 

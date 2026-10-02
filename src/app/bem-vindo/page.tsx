@@ -32,7 +32,9 @@ export default async function BemVindoPage() {
     : undefined;
 
   return (
-    <div className={styles.page} style={pageStyle}>
+    // Sem cores próprias do preset, a tela usa a identidade da marca
+    // (navy + laranja) — ver .pageMarca no CSS.
+    <div className={`${styles.page} ${pageStyle ? '' : styles.pageMarca}`} style={pageStyle}>
       <div className={styles.card}>
         <div className={styles.logos}>
           <span className={styles.logoChip}>
@@ -49,7 +51,8 @@ export default async function BemVindoPage() {
         </div>
         {preset && <p className={styles.eyebrow}>Visita especial</p>}
         <h1 className={styles.title}>
-          {preset ? `Bem-vindo, ${preset.nomeCliente}.` : 'Bem-vindo.'}
+          {preset ? `Bem-vindo, ${preset.nomeCliente}` : 'Bem-vindo'}
+          <span className={styles.titleDot}>.</span>
         </h1>
         <p className={styles.sub}>É um prazer recebê-los na nossa empresa.</p>
         <Link href="/" className={styles.btn}>

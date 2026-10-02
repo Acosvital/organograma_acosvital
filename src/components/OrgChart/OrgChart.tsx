@@ -6,6 +6,8 @@ import NodeCard from "@/components/NodeCard/NodeCard";
 import SectorCard from "@/components/SectorCard/SectorCard";
 import { useFsMode } from "@/lib/fsContext";
 import OnScreenKeyboard from "@/components/OnScreenKeyboard/OnScreenKeyboard";
+import { normalizeSearch } from "@/lib/nodeUtils";
+import { TV_DONE_EVENT, TV_PAUSE_EVENT, TV_STEP_EVENT } from "@/lib/kioskMode";
 import { Connection, OrgNode, PositionedNode } from "@/types/orgChart";
 import {
   OVERVIEW_NODE_RADIUS,
@@ -175,10 +177,13 @@ export default function OrgChart({
     "pode_visualizar",
   );
   const [showDebugWedges, setShowDebugWedges] = useState(false);
+  // Dica de gestos (rodapé) — some na primeira interação com o mapa.
+  const [showHint, setShowHint] = useState(true);
 
   const minW = activeSectorId ? MIN_W_SC : MIN_W_OV;
   const maxW = activeSectorId ? MAX_W_SC : MAX_W_OV;
 
+  const vbTrailingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // setVb: atualiza a DOM diretamente (sem re-render React) durante pan/zoom.
   // Estado React é sincronizado de forma throttled apenas para recálculo do culling.
   const setVb = useCallback((next: ViewBox) => {
@@ -193,6 +198,10 @@ export default function OrgChart({
       lastCullSyncRef.current = now;
       setVbState(next);
     }
+    // Sincronização final: sem isso o último frame do gesto podia ficar sem
+    // virar estado (zoom % e mini-mapa defasados).
+    if (vbTrailingRef.current) clearTimeout(vbTrailingRef.current);
+    vbTrailingRef.current = setTimeout(() => setVbState(vbRef.current), 160);
   }, []);
 
   const animateTo = useCallback(
@@ -536,11 +545,12 @@ export default function OrgChart({
   );
   const activeSectorName = activeSectorNode?.name ?? "";
 
-  const backLabel = useMemo(() => {
-    if (sectorStack.length <= 1) return "← Voltar à visão geral";
+  // Destino do "Voltar" da barra: setor pai → visão geral → unidades.
+  const backTarget = useMemo(() => {
+    if (sectorStack.length === 0) return "Unidades";
+    if (sectorStack.length === 1) return "Visão geral";
     const parentId = sectorStack[sectorStack.length - 2];
-    const parentName = mergedNodes.find((n) => n.id === parentId)?.name ?? "";
-    return `← Voltar${parentName ? ` a ${parentName}` : ""}`;
+    return mergedNodes.find((n) => n.id === parentId)?.name || "Setor anterior";
   }, [sectorStack, mergedNodes]);
 
   // ── Busca + navegação "voar até" ────────────────────────────────────────
@@ -550,10 +560,10 @@ export default function OrgChart({
   );
 
   const searchResults = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalizeSearch(query.trim());
     if (!q) return [];
     return mergedNodes
-      .filter((n) => `${n.name} ${n.role}`.toLowerCase().includes(q))
+      .filter((n) => normalizeSearch(`${n.name} ${n.role}`).includes(q))
       .slice(0, 20);
   }, [query, mergedNodes]);
 
@@ -595,7 +605,9 @@ export default function OrgChart({
   useEffect(() => {
     if (!searchOpen) return;
     const onPointerDownOutside = (e: PointerEvent) => {
-      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+      // composedPath (fixado no disparo) em vez de contains(): uma tecla do
+      // teclado virtual pode sair do DOM no meio do evento e parecer "fora".
+      if (searchBoxRef.current && !e.composedPath().includes(searchBoxRef.current)) {
         setSearchOpen(false);
       }
     };
@@ -947,18 +959,23 @@ export default function OrgChart({
       300,
     );
   };
-  const resetView = () => {
+  const homeVb = useMemo<ViewBox>(() => {
     if (activeSectorId && sectorDetail) {
       const maxR = sectorDetail.pos.reduce(
         (m, p) => Math.max(m, Math.sqrt(p.x * p.x + p.y * p.y) + p.radius + 80),
         200,
       );
       const size = Math.min(Math.max(maxR * 2 + 200, 1200), 4000);
-      animateTo({ x: -size / 2, y: -size / 2, w: size, h: size }, 500);
-    } else {
-      animateTo(OVERVIEW_VB, 500);
+      return { x: -size / 2, y: -size / 2, w: size, h: size };
     }
-  };
+    return OVERVIEW_VB;
+  }, [activeSectorId, sectorDetail]);
+  const resetView = () => animateTo(homeVb, 500);
+  const zoomPct = Math.round((homeVb.w / vb.w) * 100);
+  const isHome =
+    Math.abs(zoomPct - 100) <= 3 &&
+    Math.abs(vb.x + vb.w / 2 - (homeVb.x + homeVb.w / 2)) < homeVb.w * 0.04 &&
+    Math.abs(vb.y + vb.h / 2 - (homeVb.y + homeVb.h / 2)) < homeVb.h * 0.04;
 
   // viewBox gerenciado diretamente via DOM (não via React state) para máxima fluidez
 
@@ -1470,20 +1487,33 @@ export default function OrgChart({
   }
 
   // ── Legend entries ─────────────────────────────────────────────────────
-  const legendEntries = useMemo(() => {
-    if (activeSectorId) {
-      return Object.entries(levelNames)
-        .map(([lvl, name]) => [Number(lvl), name] as [number, string])
-        .filter(
-          ([lvl]) => (lvl === 0 || lvl >= 3) && (levelCounts[lvl] ?? 0) > 0,
-        );
-    }
-    // Panorama: mostra apenas níveis de pessoas (0 e 1); setores não são pessoas
-    return [
-      [0, levelNames[0]],
-      [1, levelNames[1]],
-    ] as [number, string][];
-  }, [activeSectorId, levelNames, levelCounts]);
+  // Todos os níveis hierárquicos que têm alguém — no panorama, contados na
+  // unidade inteira (não só nos nós visíveis, que param na gerência); dentro
+  // de um setor, só a equipe dele. Ordem do nível mais alto pro mais baixo.
+  const legendCounts = useMemo(() => {
+    if (activeSectorId) return levelCounts;
+    const counts: Record<number, number> = {};
+    mergedNodes.forEach((n) => {
+      if (n.isSector) return;
+      counts[n.level] = (counts[n.level] ?? 0) + 1;
+    });
+    return counts;
+  }, [activeSectorId, levelCounts, mergedNodes]);
+
+  const legendEntries = useMemo(
+    () =>
+      Object.keys(legendCounts)
+        .map(Number)
+        .filter((lvl) => (legendCounts[lvl] ?? 0) > 0)
+        .sort((a, b) => a - b)
+        .map((lvl) => [lvl, levelNames[lvl] ?? `Nível ${lvl}`] as [number, string]),
+    [legendCounts, levelNames],
+  );
+  const [legendOpen, setLegendOpen] = useState(true);
+  // No celular a legenda começa recolhida — aberta, cobre metade do mapa.
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) setLegendOpen(false);
+  }, []);
 
   const sectorCount = useMemo(
     () => (!activeSectorId ? positions.filter((p) => p.isSector).length : 0),
@@ -1512,6 +1542,122 @@ export default function OrgChart({
   // Nomes/cargos sempre visíveis, em qualquer modo (TV e tela cheia normal).
   const fsMode   = useFsMode();
   const hideText = false;
+  // Modo TV é passivo (ninguém toca): some tudo que é controle — barra de
+  // busca/Mapa-Lista, zoom, mini-mapa e as dicas de gesto. A legenda fica,
+  // porque informa.
+  const isTv = fsMode === 'tv';
+
+  // ── Modo TV: passeio automático da câmera ─────────────────────────────
+  // Em vez de ficar parado na visão geral, a câmera passeia sozinha:
+  // visão geral → para cada setor (no sentido horário, a partir do topo):
+  // voa até ele no anel, abre a equipe e aproxima devagar → volta à visão
+  // geral. Só setores com gente (abrir um setor vazio não mostra nada).
+  // Avisa o TvPlayer quanto tempo precisa (TV_STEP_EVENT) e quando terminou
+  // (TV_DONE_EVENT); para junto quando a TV é pausada (TV_PAUSE_EVENT).
+  const tourSectors = useMemo(() => {
+    if (!isTv || !unidadeId) return [];
+    const angle = (p: PositionedNode) => {
+      const a = Math.atan2(p.x, -p.y); // 0 no topo, crescendo no sentido horário
+      return a < 0 ? a + Math.PI * 2 : a;
+    };
+    return overviewSectors
+      .filter((sec) => {
+        const canon = sec.id.startsWith("sec-") ? sec.id.slice(4) : sec.id;
+        return getSubtree(canon, mergedNodes).some((n) => !n.isSector);
+      })
+      .sort((a, b) => angle(a) - angle(b));
+  }, [isTv, unidadeId, overviewSectors, mergedNodes]);
+
+  // Recomeça o passeio só se a lista de setores mudar de verdade (não a
+  // cada nova referência do array depois de um refresh dos dados).
+  const tourKey = tourSectors.map((p) => p.id).join("|");
+  const tourSectorsRef = useRef(tourSectors);
+  tourSectorsRef.current = tourSectors;
+
+  useEffect(() => {
+    if (!isTv || !mounted || !tourKey) return;
+    const sectors = tourSectorsRef.current;
+    const OVERVIEW_MS = 5000;   // visão geral no começo
+    const FLY_MS = 2600;        // volta à visão geral + voo até o setor no anel
+    const TEAM_MS = 5200;       // equipe do setor na tela
+    const END_MS = 3500;        // visão geral no fim
+
+    const inner: ReturnType<typeof setTimeout>[] = [];
+    const later = (fn: () => void, ms: number) => { inner.push(setTimeout(fn, ms)); };
+
+    type Step = { ms: number; run: () => void };
+    const steps: Step[] = [{ ms: OVERVIEW_MS, run: () => { setSectorStack([]); animateTo(OVERVIEW_VB, 900); } }];
+    for (const sec of sectors) {
+      steps.push({
+        ms: FLY_MS,
+        run: () => {
+          setHighlightId(null);
+          setSectorStack([]); // o efeito de troca de vista anima até a visão geral (700ms)
+          later(() => {
+            const W = 460;
+            animateTo({ x: sec.x - W / 2, y: sec.y - W / 2, w: W, h: W }, 1300);
+            setHighlightId(sec.id);
+          }, 800);
+        },
+      });
+      steps.push({
+        ms: TEAM_MS,
+        run: () => {
+          setHighlightId(null);
+          openSector(sec.id); // o efeito de troca de vista enquadra a equipe (700ms)
+          // …e depois aproxima devagar, pra tela não ficar parada.
+          later(() => {
+            const c = vbRef.current;
+            const k = 0.84;
+            animateTo(
+              { x: c.x + (c.w * (1 - k)) / 2, y: c.y + (c.h * (1 - k)) / 2, w: c.w * k, h: c.h * k },
+              TEAM_MS - 1000,
+            );
+          }, 800);
+        },
+      });
+    }
+    steps.push({ ms: END_MS, run: () => { setHighlightId(null); setSectorStack([]); } });
+
+    const href = window.location.pathname;
+    const total = steps.reduce((t, st) => t + st.ms, 0);
+    window.dispatchEvent(new CustomEvent(TV_STEP_EVENT, { detail: { href, ms: total } }));
+
+    let i = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let paused = false;
+    const schedule = () => {
+      timer = setTimeout(() => {
+        i += 1;
+        if (i >= steps.length) {
+          window.dispatchEvent(new CustomEvent(TV_DONE_EVENT, { detail: { href } }));
+          return;
+        }
+        steps[i].run();
+        schedule();
+      }, steps[i].ms);
+    };
+    steps[0].run();
+    schedule();
+
+    // Pausa: congela no passo atual; ao continuar, o passo atual recomeça a
+    // contar do zero (o TvPlayer também reinicia a barra ao continuar).
+    const onPause = (e: Event) => {
+      const next = !!(e as CustomEvent<{ paused: boolean }>).detail?.paused;
+      if (next === paused) return;
+      paused = next;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (!paused && i < steps.length) schedule();
+    };
+    window.addEventListener(TV_PAUSE_EVENT, onPause);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      inner.forEach(clearTimeout);
+      window.removeEventListener(TV_PAUSE_EVENT, onPause);
+    };
+  }, [isTv, mounted, tourKey, animateTo, openSector]);
 
   // ── Tier 3: tilt 3D sutil seguindo o mouse ────────────────────────────
   // Atualiza o transform diretamente no DOM — sem setState para evitar re-renders.
@@ -1567,33 +1713,54 @@ export default function OrgChart({
     <div
       ref={wrapperRef}
       className={`${styles.wrapper} ${styles.wrapperLoaded}`}
+      onPointerDownCapture={showHint ? () => setShowHint(false) : undefined}
+      onWheelCapture={showHint ? () => setShowHint(false) : undefined}
     >
-      {/* ── Barra: alternância de modo (Mapa/Lista) + busca ─────────── */}
-      <div className={`${styles.toolbar} ${fsMode !== 'none' ? styles.shifted : ''}`}>
-        {unidadeId && (
-          <Link href="/" className={styles.unidadesBackLink} title="Voltar para seleção de unidades">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+      {/* ── Barra: voltar (contextual) + interruptor Mapa/Lista + busca ── */}
+      <div className={`${styles.toolbar} ${fsMode === 'totem' ? styles.shifted : ''}`} style={isTv ? { display: 'none' } : undefined}>
+        {(unidadeId || (viewMode === "radial" && activeSectorId)) && (() => {
+          const inner = (
+            <>
+              <svg className={styles.backIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5" /><path d="m12 19-7-7 7-7" />
+              </svg>
+              <span className={styles.backText}>
+                <span className={styles.backEyebrow}>Voltar para</span>
+                <span className={styles.backTarget}>{viewMode === "radial" ? backTarget : "Unidades"}</span>
+              </span>
+            </>
+          );
+          return viewMode === "radial" && activeSectorId ? (
+            <button type="button" className={styles.backPill} onClick={goBack}>{inner}</button>
+          ) : (
+            <Link href="/" className={styles.backPill} draggable={false}>{inner}</Link>
+          );
+        })()}
+
+        {/* Interruptor único: tocar em qualquer lugar alterna Mapa ↔ Lista. */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={viewMode === "tree"}
+          aria-label={viewMode === "radial" ? "Visualização em mapa — tocar para ver em lista" : "Visualização em lista — tocar para ver em mapa"}
+          className={styles.viewSwitch}
+          data-mode={viewMode}
+          onClick={() => setViewMode(viewMode === "radial" ? "tree" : "radial")}
+        >
+          <span className={styles.viewThumb} aria-hidden />
+          <span className={styles.viewOpt} data-on={viewMode === "radial"}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="9" strokeDasharray="2 3" />
             </svg>
-            Unidades
-          </Link>
-        )}
-        <div className={styles.segmented}>
-          <button
-            type="button"
-            data-active={viewMode === "radial"}
-            onClick={() => setViewMode("radial")}
-          >
             Mapa
-          </button>
-          <button
-            type="button"
-            data-active={viewMode === "tree"}
-            onClick={() => setViewMode("tree")}
-          >
+          </span>
+          <span className={styles.viewOpt} data-on={viewMode === "tree"}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" />
+            </svg>
             Lista
-          </button>
-        </div>
+          </span>
+        </button>
 
         {viewMode === "radial" && (
           <div className={styles.searchBox} ref={searchBoxRef}>
@@ -1689,12 +1856,6 @@ export default function OrgChart({
 
       {viewMode === "radial" && (
         <>
-          {/* ── Back button (sector view only) ──────────────────────────── */}
-          {activeSectorId && (
-            <button className={styles.backBtn} onClick={goBack}>
-              {backLabel}
-            </button>
-          )}
 
           {/* ── Sector title (sector view only) ─────────────────────────── */}
           {activeSectorId && (
@@ -1706,49 +1867,61 @@ export default function OrgChart({
             </div>
           )}
 
-          {/* ── Legend ──────────────────────────────────────────────────── */}
-          <aside className={styles.legend}>
-            <div className={styles.legendTitle}>
-              {activeSectorId ? activeSectorName : "Hierarquia"}
-            </div>
-            {legendEntries.map(([lvl, name]) => (
-              <div key={lvl} className={styles.legendItem}>
-                <span
-                  className={styles.legendDot}
-                  style={{ background: levelColors[lvl] }}
-                />
-                <span className={styles.legendLabel}>{name}</span>
-                <span className={styles.legendCount}>
-                  {levelCounts[lvl] ?? 0}
-                </span>
-              </div>
-            ))}
-            <div className={styles.legendTotal}>
-              {activeSectorId ? (
-                <>
-                  Equipe: <strong>{totalPeople}</strong> pessoas
-                </>
-              ) : (
-                <>
-                  Total: <strong>{totalPeople}</strong> colaboradores
-                </>
+          {/* ── Legenda: todos os níveis, recolhível ─────────────────────── */}
+          <aside className={styles.legend} data-open={legendOpen}>
+            <button
+              type="button"
+              className={styles.legendHeader}
+              onClick={() => setLegendOpen((o) => !o)}
+              aria-expanded={legendOpen}
+              disabled={isTv}
+            >
+              <span className={styles.legendTitle}>
+                {/* nome do setor já aparece no título central */}
+                {activeSectorId ? "Equipe" : "Hierarquia"}
+              </span>
+              <span className={styles.legendTotalChip}>
+                {totalPeople} <span>{activeSectorId ? "na equipe" : "pessoas"}</span>
+              </span>
+              {!isTv && (
+                <svg className={styles.legendChevron} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
               )}
-            </div>
-            {!activeSectorId && (
-              <div className={styles.legendHint}>
-                <span>
-                  {sectorCount} setor{sectorCount !== 1 ? "es" : ""} · Toque
-                  para ver a equipe
-                </span>
-                <span>Arraste · 2 dedos ou scroll → zoom</span>
-              </div>
-            )}
-            {activeSectorId && (
-              <div className={styles.legendHint}>
-                <span>Arraste · 2 dedos ou scroll → zoom</span>
-              </div>
+            </button>
+            {legendOpen && (
+              <ol className={styles.legendList}>
+                {legendEntries.map(([lvl, name]) => {
+                  const count = legendCounts[lvl] ?? 0;
+                  const max = Math.max(...legendEntries.map(([l]) => legendCounts[l] ?? 0), 1);
+                  return (
+                    <li key={lvl} className={styles.legendItem}>
+                      <span className={styles.legendDot} style={{ background: levelColors[lvl] }} />
+                      <span className={styles.legendLabel}>{name}</span>
+                      <span className={styles.legendCount}>{count}</span>
+                      <span
+                        className={styles.legendBar}
+                        style={{ width: `${Math.max(4, (count / max) * 100)}%`, background: levelColors[lvl] }}
+                        aria-hidden
+                      />
+                    </li>
+                  );
+                })}
+                {!activeSectorId && sectorCount > 0 && (
+                  <li className={styles.legendFoot}>
+                    {sectorCount} setor{sectorCount !== 1 ? "es" : ""} nesta unidade
+                  </li>
+                )}
+              </ol>
             )}
           </aside>
+
+          {/* ── Dica de gestos — some no primeiro toque ────────────────── */}
+          {showHint && !isTv && (
+            <div className={styles.hint} aria-hidden>
+              {activeSectorId ? "Arraste para mover · pinça ou scroll para zoom" : "Toque em um setor para ver a equipe · arraste · pinça para zoom"}
+            </div>
+          )}
 
           {/* ── Canvas inclinável: starfield + SVG ─────────────────────── */}
           <div
@@ -2068,24 +2241,33 @@ export default function OrgChart({
           </div>
           {/* /canvasTilt */}
 
-          {/* ── Zoom Controls ───────────────────────────────────────────── */}
-          <div className={styles.controls}>
-            <button className={styles.btn} onClick={zoomIn} title="Aproximar">
-              +
-            </button>
+          {/* ── Controles de zoom: + / % / − e "voltar à visão inicial" ──── */}
+          <div className={styles.controls} style={isTv ? { display: 'none' } : undefined}>
             <button
-              className={styles.btn}
+              type="button"
+              className={`${styles.homeBtn} ${isHome ? styles.homeBtnIdle : ''}`}
               onClick={resetView}
-              title="Resetar visão"
+              title="Centralizar"
+              aria-label="Centralizar e voltar ao zoom inicial"
             >
-              ⌂
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
-            <button className={styles.btn} onClick={zoomOut} title="Afastar">
-              −
-            </button>
+            <div className={styles.zoomGroup} role="group" aria-label="Zoom">
+              <button type="button" className={styles.zoomBtn} onClick={zoomIn} disabled={vb.w <= minW + 1} aria-label="Aproximar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+              </button>
+              <span className={styles.zoomPct} aria-live="polite">{zoomPct}%</span>
+              <button type="button" className={styles.zoomBtn} onClick={zoomOut} disabled={vb.w >= maxW - 1} aria-label="Afastar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M5 12h14" /></svg>
+              </button>
+            </div>
             {activeSectorId && canSeeDebugWedges && (
               <button
-                className={`${styles.btn} ${showDebugWedges ? styles.btnActive : ""}`}
+                type="button"
+                className={`${styles.homeBtn} ${styles.homeBtnIdle} ${showDebugWedges ? styles.btnActive : ""}`}
                 onClick={() => setShowDebugWedges((v) => !v)}
                 title="Fatias angulares (debug)"
               >
@@ -2095,12 +2277,14 @@ export default function OrgChart({
           </div>
 
           {/* ── Mini-mapa (apenas no panorama) ──────────────────────────── */}
-          {!activeSectorId && (
+          {!activeSectorId && !isTv && (
             <MiniMap
+              visible={zoomPct > 115}
+              home={homeVb}
               positions={positions}
               vb={vb}
               levelColors={levelColors}
-              shifted={fsMode !== 'none'}
+              shifted={fsMode === 'totem'}
               onJump={(wx, wy) => {
                 const c = vbRef.current;
                 setVb({ x: wx - c.w / 2, y: wy - c.h / 2, w: c.w, h: c.h });
@@ -2153,39 +2337,64 @@ function FlyHighlight({ x, y, r }: { x: number; y: number; r: number }) {
 interface MiniMapProps {
   positions: PositionedNode[];
   vb: ViewBox;
+  /** Visão inicial — define a escala do mini-mapa (o "mundo" inteiro). */
+  home: ViewBox;
   levelColors: Record<number, string>;
   onJump: (worldX: number, worldY: number) => void;
   shifted?: boolean;
+  /** Só aparece com zoom — na visão inicial ele repetiria a tela inteira. */
+  visible?: boolean;
 }
 
-/** Mini-mapa de orientação: pontos dos nós + retângulo do viewport atual. */
-function MiniMap({ positions, vb, levelColors, onJump, shifted = false }: MiniMapProps) {
-  const S = 150; // tamanho do mini-mapa em px
-  const D = 1000; // domínio do mundo: -500..500
-  const k = S / D;
-  const mx = (x: number) => (x + 500) * k;
-  const my = (y: number) => (y + 500) * k;
+/** Mini-mapa de orientação: pontos dos nós + retângulo do viewport atual.
+ *  Tocar ou arrastar dentro dele move a câmera pra lá. */
+function MiniMap({ positions, vb, home, levelColors, onJump, shifted = false, visible = true }: MiniMapProps) {
+  const S = 140; // tamanho do mini-mapa em px
+  const k = S / home.w;
+  const mx = (x: number) => (x - home.x) * k;
+  const my = (y: number) => (y - home.y) * k;
+  const dragging = useRef(false);
 
-  const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+  const jumpFrom = (e: React.PointerEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const px = ((e.clientX - rect.left) / rect.width) * S;
     const py = ((e.clientY - rect.top) / rect.height) * S;
-    onJump(px / k - 500, py / k - 500);
+    onJump(px / k + home.x, py / k + home.y);
   };
 
+  // Retângulo do viewport limitado à área do mini-mapa (com zoom-out ele
+  // passaria das bordas e sumiria).
+  const rx = Math.max(0, mx(vb.x));
+  const ry = Math.max(0, my(vb.y));
+  const rw = Math.min(S, mx(vb.x + vb.w)) - rx;
+  const rh = Math.min(S, my(vb.y + vb.h)) - ry;
+
   return (
-    <div className={`${styles.minimap} ${shifted ? styles.shifted : ''}`}>
+    <div
+      className={`${styles.minimap} ${shifted ? styles.shifted : ''} ${visible ? styles.minimapVisible : ''}`}
+      aria-hidden={!visible}
+    >
+      <span className={styles.minimapLabel}>Você está aqui</span>
       <svg
         viewBox={`0 0 ${S} ${S}`}
         className={styles.minimapSvg}
-        onClick={handleClick}
+        onPointerDown={(e) => {
+          dragging.current = true;
+          try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+          jumpFrom(e);
+        }}
+        onPointerMove={(e) => { if (dragging.current) jumpFrom(e); }}
+        onPointerUp={() => { dragging.current = false; }}
+        onPointerCancel={() => { dragging.current = false; }}
       >
+        {/* anel dos setores, como referência */}
+        <circle cx={mx(0)} cy={my(0)} r={SPINE_R * k} className={styles.minimapRing} />
         {positions.map((p) => (
           <circle
             key={p.id}
             cx={mx(p.x)}
             cy={my(p.y)}
-            r={p.level === 0 ? 3.2 : 2.2}
+            r={p.level === 0 ? 4 : p.isSector ? 2.6 : 3}
             fill={
               p.isSector
                 ? (p.sectorColor ?? levelColors[2])
@@ -2193,13 +2402,9 @@ function MiniMap({ positions, vb, levelColors, onJump, shifted = false }: MiniMa
             }
           />
         ))}
-        <rect
-          x={mx(vb.x)}
-          y={my(vb.y)}
-          width={vb.w * k}
-          height={vb.h * k}
-          className={styles.minimapViewport}
-        />
+        {rw > 0 && rh > 0 && (
+          <rect x={rx} y={ry} width={rw} height={rh} rx={3} className={styles.minimapViewport} />
+        )}
       </svg>
     </div>
   );

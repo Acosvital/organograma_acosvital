@@ -106,7 +106,7 @@ export default function HistoriaView({ historia, error = false }: Props) {
       )}
       <div className={styles.bgGradient} />
 
-      <div className={`${styles.content} ${fsMode !== 'none' ? styles.shifted : ''}`}>
+      <div className={`${styles.content} ${fsMode === 'totem' ? styles.shifted : ''}`}>
         {error && <p className={styles.status}>Não foi possível carregar esta página.</p>}
 
         {!error && historia && (

@@ -1,11 +1,16 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import styles from './SidebarShell.module.css';
-import { FsContext } from '@/lib/fsContext';
+import { FsContext, type FsMode } from '@/lib/fsContext';
+import {
+  MODE_PARAM, enterFullscreen, exitFullscreen, readStoredMode, readUrlMode, storeMode,
+} from '@/lib/kioskMode';
 import IdleHomeRedirect from '@/components/IdleHomeRedirect';
+import TvPlayer from '@/components/Kiosk/TvPlayer';
+import TotemAttract from '@/components/Kiosk/TotemAttract';
 
 interface Props {
   userEmail?: string;
@@ -16,62 +21,78 @@ const HIDDEN_PATHS = ['/login'];
 
 export default function SidebarShell({ userEmail, children }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
 
-  /** 'none' | 'tv' (sidebar flutuante) | 'clean' (sidebar oculta) */
-  const [fsMode, setFsMode] = useState<'none' | 'tv' | 'clean'>('none');
+  const [mode, setModeState] = useState<FsMode>('none');
+  // Só depois de ler o modo salvo dá pra mexer no data-kiosk do <html> —
+  // antes disso ele vem do script KIOSK_INIT do layout e não pode ser apagado.
+  const [restored, setRestored] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Reset quando o usuário sai do fullscreen pelo Esc / API do browser
+  // Restaura o modo salvo no aparelho; `?modo=` na URL tem prioridade e é
+  // removido em seguida pra não ficar "grudado" nos links.
   useEffect(() => {
-    const onChange = () => {
-      if (!document.fullscreenElement) setFsMode('none');
-    };
-    document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
+    const fromUrl = readUrlMode();
+    if (fromUrl) {
+      storeMode(fromUrl);
+      const url = new URL(window.location.href);
+      url.searchParams.delete(MODE_PARAM);
+      router.replace(url.pathname + url.search + url.hash);
+    }
+    setModeState(fromUrl ?? readStoredMode());
+    setRestored(true);
+    // só na montagem
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const setMode = useCallback((next: FsMode) => {
+    storeMode(next);
+    setModeState(next);
+    // Chamado a partir de um clique: é o gesto que o navegador exige.
+    if (next === 'none') exitFullscreen();
+    else enterFullscreen();
+  }, []);
+
+  // Em quiosque, sair da tela cheia (Esc, gesto de voltar do Android) NÃO
+  // desliga o modo — o próximo toque pede a tela cheia de novo. Só se sai
+  // pelo botão "segure para sair". Depois de recarregar, a tela cheia também
+  // só volta no primeiro toque (o navegador exige um gesto).
+  useEffect(() => {
+    if (mode === 'none') return;
+    const again = () => { if (!document.fullscreenElement) enterFullscreen(); };
+    window.addEventListener('pointerup', again);
+    return () => window.removeEventListener('pointerup', again);
+  }, [mode]);
+
+  // Marca o <html> pros estilos globais de quiosque (sem seleção de texto,
+  // sem menu de contexto do toque longo, cursor oculto no modo TV).
+  useEffect(() => {
+    if (!restored) return;
+    const root = document.documentElement;
+    if (mode === 'none') delete root.dataset.kiosk;
+    else root.dataset.kiosk = mode;
+    if (mode === 'none') return;
+    const noMenu = (e: Event) => e.preventDefault();
+    window.addEventListener('contextmenu', noMenu);
+    return () => window.removeEventListener('contextmenu', noMenu);
+  }, [mode, restored]);
 
   // Fecha sidebar mobile ao mudar de rota
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
-
-  const enterTvFs = useCallback(async () => {
-    try {
-      if (fsMode === 'tv') {
-        await document.exitFullscreen();
-        setFsMode('none');
-      } else {
-        if (!document.fullscreenElement)
-          await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-        setFsMode('tv');
-      }
-    } catch {}
-  }, [fsMode]);
-
-  const enterCleanFs = useCallback(async () => {
-    try {
-      if (fsMode === 'clean') {
-        await document.exitFullscreen();
-        setFsMode('none');
-      } else {
-        if (!document.fullscreenElement)
-          await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-        setFsMode('clean');
-      }
-    } catch {}
-  }, [fsMode]);
+  const exitKiosk = useCallback(() => setMode('none'), [setMode]);
 
   const showSidebar = !HIDDEN_PATHS.some(p => pathname.startsWith(p));
 
   if (!showSidebar) return (
-    <FsContext.Provider value={fsMode}>
+    <FsContext.Provider value="none">
       <IdleHomeRedirect />
       {children}
     </FsContext.Provider>
   );
 
-  // Modo TV ou modo limpo: sidebar flutuante (position: fixed) sobre o conteúdo.
-  const isFloating = fsMode === 'tv' || fsMode === 'clean';
+  const isKiosk = mode !== 'none';
 
   // Importante: manter uma única árvore JSX (com keys estáveis em Sidebar/conteúdo)
   // em vez de dois `return`s com formatos diferentes — caso contrário o React
@@ -79,23 +100,25 @@ export default function SidebarShell({ userEmail, children }: Props) {
   // o que reinicia o estado interno do globo (ex.: pausa de rotação) ao entrar
   // em tela cheia.
   return (
-    <FsContext.Provider value={fsMode}>
+    <FsContext.Provider value={mode}>
     <IdleHomeRedirect />
     <div className={styles.shell}>
       {/* Backdrop — cobre o conteúdo quando sidebar mobile está aberta */}
-      {!isFloating && mobileOpen && (
+      {!isKiosk && mobileOpen && (
         <div
           key="backdrop"
+          data-kiosk-hide
           className={styles.backdrop}
           onClick={closeMobile}
           aria-hidden="true"
         />
       )}
 
-      {/* Botão hamburguer — só visível em mobile, fora de tela cheia */}
-      {!isFloating && (
+      {/* Botão hamburguer — só visível em mobile, fora dos modos de quiosque */}
+      {!isKiosk && (
         <button
           key="menuBtn"
+          data-kiosk-hide
           className={`${styles.menuBtn} ${mobileOpen ? styles.menuBtnOpen : ''}`}
           onClick={() => setMobileOpen(o => !o)}
           aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'}
@@ -112,18 +135,20 @@ export default function SidebarShell({ userEmail, children }: Props) {
         </button>
       )}
 
-      <Sidebar
-        key="sidebar"
-        userEmail={userEmail}
-        floating={isFloating}
-        isTvFs={fsMode === 'tv'}
-        isAnyFs={isFloating}
-        onTvFs={enterTvFs}
-        onCleanFs={enterCleanFs}
-        mobileOpen={isFloating ? false : mobileOpen}
-        onMobileClose={closeMobile}
-      />
+      {/* Modo TV não tem menu nenhum — só o conteúdo e a barra de controle. */}
+      {mode !== 'tv' && (
+        <Sidebar
+          key="sidebar"
+          userEmail={userEmail}
+          mode={mode}
+          onModeChange={setMode}
+          mobileOpen={isKiosk ? false : mobileOpen}
+          onMobileClose={closeMobile}
+        />
+      )}
       <div key="content" className={styles.content}>{children}</div>
+      {mode === 'tv' && <TvPlayer key="tv" onExit={exitKiosk} />}
+      {mode === 'totem' && <TotemAttract key="attract" />}
     </div>
     </FsContext.Provider>
   );

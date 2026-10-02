@@ -1511,7 +1511,7 @@ export default function GlobeCanvas({ points, theme = 'hub', onPointClick, focus
         <>
           {/* Title overlay */}
           {!hideControls && (
-            <div className={`${styles.titleOverlay} ${fsMode !== 'none' ? styles.titleOverlayShifted : ''}`}>
+            <div className={`${styles.titleOverlay} ${fsMode === 'totem' ? styles.titleOverlayShifted : ''}`}>
               <div className={styles.titleTag}>
                 {theme === 'vital' ? 'Aços Vital · Clientes' : 'Aços Hub · Visualização'}
               </div>
