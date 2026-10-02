@@ -1,6 +1,5 @@
 import { fetchAllPages } from '@/lib/apiClient';
 import type { OrgNode } from '@/types/orgChart';
-import { MOCK_TEST_SECTOR_ENABLED, buildMockTestSector } from '@/lib/data/mockTestSector';
 
 // Shape retornado pela view externa /vw_organograma_nodes
 interface VwNode {
@@ -176,11 +175,6 @@ export async function getOrgNodes({ parentId, unidadeId }: GetOrgNodesParams = {
         ? n
         : { ...n, unidadeId: (n.funcionarioId != null ? unitScope.funcUnitMap.get(n.funcionarioId) : undefined) ?? null }
     ));
-
-  if (MOCK_TEST_SECTOR_ENABLED) {
-    const logistica = finalNodes.find((n) => n.isSector && normalizeName(n.name) === normalizeName('Logística'));
-    if (logistica && unidadeId) return [...finalNodes, ...buildMockTestSector(logistica.id, unidadeId)];
-  }
 
   return finalNodes;
 }
