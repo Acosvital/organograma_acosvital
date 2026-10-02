@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/apiAuth';
 import { getUnidadesList, resolveFotoUrl } from '@/lib/data/unidades';
 import { getFuncionariosEnriched } from '@/lib/data/adminFuncionarios';
 import { getOrgNodes } from '@/lib/data/org';
+import { getNiveisHierarquicos } from '@/lib/data/niveisHierarquicos';
 import { mergeDirectors } from '@/utils/mergeDirectors';
 import type { Unidade } from '@/types/adminCore';
 import type { PositionedNode } from '@/types/orgChart';
@@ -71,6 +72,8 @@ export default async function Home() {
     redirect('/login?next=%2F');
   }
 
+  const { levelColors } = await getNiveisHierarquicos();
+
   let unidades: Unidade[] = [];
   let funcionarios: EnrichedFuncionario[] = [];
   let directorsNode: PositionedNode | null = null;
@@ -111,6 +114,7 @@ export default async function Home() {
       <OrganogramaOverview
         directorsNode={directorsNode}
         unidadesComGerentes={unidadesComGerentes}
+        levelColors={levelColors}
         error={error}
       />
     </>

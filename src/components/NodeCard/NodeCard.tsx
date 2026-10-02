@@ -26,7 +26,14 @@ function getInitials(name: string): string {
 function getShortName(name: string): string {
   const parts = name.split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return parts[0] ?? '';
-  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+  const last = parts[parts.length - 1];
+  // Sobrenome vira inicial (ex.: "Nathan Silva" → "Nathan S.") — mas truncar
+  // um NÚMERO pro primeiro dígito não abrevia nada com sentido (ex.: "Teste
+  // Analista 10" virava "Teste 1.", igual a "Analista 1"). Só acontece com
+  // nomes de teste/mock (pessoa real nunca termina em número), mas o número
+  // inteiro é o correto a mostrar quando isso ocorrer.
+  if (/^\d+$/.test(last)) return `${parts[0]} ${last}`;
+  return `${parts[0]} ${last[0]}.`;
 }
 
 /** Primeiro e segundo nome — usado para Diretoria/Gerência Geral (ver prop `fullName`). */
