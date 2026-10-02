@@ -1,6 +1,6 @@
 import { requireAuth } from '@/lib/apiAuth';
 import { getOrgNodes } from '@/lib/data/org';
-import { levelColors, levelNames } from '@/data/orgData';
+import { getNiveisHierarquicos } from '@/lib/data/niveisHierarquicos';
 import OrgChartRealtimeWrapper from '@/components/OrgChart/OrgChartRealtimeWrapper';
 import type { OrgNode } from '@/types/orgChart';
 import styles from '../../page.module.css';
@@ -22,6 +22,8 @@ export default async function OrganogramaUnidadePage({
       initialNodes = await getOrgNodes({ unidadeId });
     } catch {}
   }
+
+  const { levelNames, levelColors } = await getNiveisHierarquicos();
 
   return (
     <div className={styles.page}>
