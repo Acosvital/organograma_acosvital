@@ -1,10 +1,22 @@
 /**
- * Cliente HTTP para a API REST externa da Açosvital.
- * Base URL e chave lidos das variáveis de ambiente server-side.
+ * Clientes HTTP para as APIs REST externas da Açosvital.
+ * Bases e chaves lidas das variáveis de ambiente server-side.
+ *
+ * São duas APIs distintas:
+ * - a API de estrutura organizacional (cargos/setores/unidades/funcionários),
+ *   autenticada por x-api-key (API_ACOSVITAL_URL/KEY);
+ * - a API do blog/Av-Hub — o próprio Next.js do acosvital.com.br/blog —
+ *   (linha do tempo de "Nossa História" e tela de boas-vindas). As leituras
+ *   usadas por este app (GET welcome-settings, GET welcome-presets) são
+ *   públicas, sem API key; não há GET público para historia (só PUT, restrito
+ *   à sessão admin do dashboard do blog).
  */
 
 const BASE = (process.env.API_ACOSVITAL_URL ?? 'https://api-test.acosvital.com.br').replace(/\/$/, '');
 const KEY  =  process.env.API_ACOSVITAL_KEY  ?? '';
+
+const BLOG_BASE = (process.env.API_ACOSVITAL_BLOG_URL ?? 'https://acosvital.com.br/blog').replace(/\/$/, '');
+const BLOG_KEY  =  process.env.API_ACOSVITAL_BLOG_KEY ?? '';
 
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -30,14 +42,27 @@ export const HISTORIA_CACHE_TAG = 'acosvital-historia';
 // — domínio independente, gerido fora deste app.
 export const WELCOME_CACHE_TAG = 'acosvital-welcome';
 
-async function request<T>(path: string, init: RequestInit = {}, cacheTag: string = API_CACHE_TAG): Promise<T> {
-  const url = `${BASE}/${path.replace(/^\//, '')}`;
+interface ClientConfig {
+  base: string;
+  key:  string;
+}
+
+const ORG_CLIENT: ClientConfig  = { base: BASE,      key: KEY };
+const BLOG_CLIENT: ClientConfig = { base: BLOG_BASE, key: BLOG_KEY };
+
+async function requestWith<T>(
+  { base, key }: ClientConfig,
+  path: string,
+  init: RequestInit = {},
+  cacheTag: string = API_CACHE_TAG,
+): Promise<T> {
+  const url = `${base}/${path.replace(/^\//, '')}`;
   const method = (init.method ?? 'GET').toUpperCase();
   const isGet = method === 'GET' || method === 'HEAD';
   const res = await fetch(url, {
     ...init,
     headers: {
-      'x-api-key':    KEY,
+      ...(key ? { 'x-api-key': key } : {}),
       'Accept':       'application/json',
       'Content-Type': 'application/json',
       ...(init.headers ?? {}),
@@ -72,32 +97,55 @@ async function request<T>(path: string, init: RequestInit = {}, cacheTag: string
   return res.json() as Promise<T>;
 }
 
+function withQuery(path: string, params?: Record<string, string | number | undefined>): string {
+  if (!params) return path;
+  const qs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join('&');
+  return qs ? `${path}?${qs}` : path;
+}
+
 export function apiGet<T>(
   path: string,
   params?: Record<string, string | number | undefined>,
   cacheTag?: string,
 ): Promise<T> {
-  let p = path;
-  if (params) {
-    const qs = Object.entries(params)
-      .filter(([, v]) => v !== undefined && v !== '')
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-      .join('&');
-    if (qs) p += `?${qs}`;
-  }
-  return request<T>(p, {}, cacheTag);
+  return requestWith<T>(ORG_CLIENT, withQuery(path, params), {}, cacheTag);
 }
 
 export function apiPost<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: 'POST', body: JSON.stringify(body) });
+  return requestWith<T>(ORG_CLIENT, path, { method: 'POST', body: JSON.stringify(body) });
 }
 
 export function apiPut<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: 'PUT', body: JSON.stringify(body) });
+  return requestWith<T>(ORG_CLIENT, path, { method: 'PUT', body: JSON.stringify(body) });
 }
 
 export function apiDelete(path: string): Promise<void> {
-  return request<void>(path, { method: 'DELETE' });
+  return requestWith<void>(ORG_CLIENT, path, { method: 'DELETE' });
+}
+
+// ── API do blog/Av-Hub: "Nossa História" e tela de boas-vindas ──
+
+export function blogGet<T>(
+  path: string,
+  params?: Record<string, string | number | undefined>,
+  cacheTag?: string,
+): Promise<T> {
+  return requestWith<T>(BLOG_CLIENT, withQuery(path, params), {}, cacheTag);
+}
+
+export function blogPost<T>(path: string, body: unknown): Promise<T> {
+  return requestWith<T>(BLOG_CLIENT, path, { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function blogPut<T>(path: string, body: unknown): Promise<T> {
+  return requestWith<T>(BLOG_CLIENT, path, { method: 'PUT', body: JSON.stringify(body) });
+}
+
+export function blogDelete(path: string): Promise<void> {
+  return requestWith<void>(BLOG_CLIENT, path, { method: 'DELETE' });
 }
 
 /** Mapeia um ApiError para um status HTTP + mensagem amigável. */
