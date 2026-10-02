@@ -9,9 +9,8 @@ import { useFsMode } from '@/lib/fsContext';
 const IDLE_MS = 3 * 60 * 1_000;
 const CHECK_INTERVAL_MS = 15_000;
 
-/** Rotas onde o redirecionamento por inatividade não deve valer — uso
- *  interno/administrativo, não tela pública de quiosque. */
-const EXCLUDED_PREFIXES = ['/admin', '/login'];
+/** Rotas onde o redirecionamento por inatividade não deve valer. */
+const EXCLUDED_PREFIXES = ['/login'];
 
 /**
  * Leva de volta para "/" após IDLE_MS sem nenhuma interação, em qualquer tela

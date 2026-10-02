@@ -218,3 +218,29 @@ a {
     scroll-behavior: auto !important;
   }
 }
+
+/* ===== Modos de quiosque (ver src/lib/kioskMode.ts) =====
+ * Totem/TV: sem seleção de texto nem menu do toque longo — num totem isso
+ * só aparece por acidente. Modo TV: cursor escondido enquanto ninguém mexe. */
+html[data-kiosk] body {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+html[data-kiosk] input,
+html[data-kiosk] textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+html[data-tv-idle],
+html[data-tv-idle] * {
+  cursor: none !important;
+}
+
+/* Antes do SidebarShell restaurar o modo salvo (ver KIOSK_INIT no layout),
+ * o menu completo e o hamburguer não aparecem num aparelho de quiosque. */
+html[data-kiosk] [data-kiosk-hide] {
+  display: none !important;
+}

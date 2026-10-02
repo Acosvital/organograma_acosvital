@@ -1,0 +1,134 @@
+/* Barra de controle do Modo TV — escondida até alguém mexer, sempre na
+   paleta escura (fica sobre o globo/espaço). */
+
+.wrap {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 300;
+  transform: translate(-50%, 16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  width: min(760px, calc(100vw - 48px));
+  align-items: center;
+  gap: 24px;
+  overflow: hidden;
+  padding: 12px 14px 14px 20px;
+  border: 1px solid color-mix(in srgb, #ffffff 10%, transparent);
+  border-radius: 16px;
+  background: rgba(12, 19, 39, 0.9);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  color: #f5f8fc;
+  font-family: var(--font-sans);
+}
+
+.info {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #c2410c 22%, transparent);
+  color: #fb923c;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.count {
+  flex-shrink: 0;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #ffffff 10%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, #ffffff 4%, transparent);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.btn:hover {
+  background: color-mix(in srgb, #ffffff 9%, transparent);
+  color: #f5f8fc;
+}
+
+.btnMain {
+  border-color: color-mix(in srgb, #c2410c 60%, transparent);
+  background: color-mix(in srgb, #c2410c 22%, transparent);
+  color: #fdba74;
+}
+
+.exit {
+  height: 44px;
+  margin-left: 10px;
+  padding: 0 14px;
+}
+
+.track {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: color-mix(in srgb, #ffffff 6%, transparent);
+}
+
+.progress {
+  height: 100%;
+  background: #c2410c;
+  transform-origin: left center;
+  animation-name: progresso;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+@keyframes progresso {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}

@@ -1,170 +1,356 @@
-/* Overlay fixo ancorado embaixo da tela — largura própria (não tenta caber
- * nos 260px da caixa de busca, estreita demais para um teclado usável num
- * painel touch grande). `left` fica de fora de propósito: OrgChart.tsx tem
- * um ancestral com `transform` (efeito de tilt 3D), o que muda o container
- * de referência de `position:fixed` — um `left:50%` aqui seria relativo a
- * esse ancestral, não à tela, e um `%` não dá pra "travar" em px de forma
- * confiável ao iniciar o arraste. O componente calcula e aplica o `left`
- * inicial via JS (mesma referência usada pelo arraste — ver OnScreenKeyboard.tsx). */
+/* Teclado virtual — mesma linguagem dos controles do mapa (vidro navy +
+ * laranja da marca), sempre escuro. Teclas de 56px pra toque num painel
+ * grande.
+ *
+ * `left` fica de fora de propósito: o OrgChart tem um ancestral com
+ * `transform` (tilt 3D), que muda o container de referência de
+ * `position:fixed` — `left:50%` seria relativo a ele, não à tela. O
+ * componente calcula o `left` inicial via JS, no mesmo referencial do
+ * arraste (ver OnScreenKeyboard.tsx). */
 .overlay {
   position: fixed;
-  bottom: 24px;
+  bottom: 20px;
   z-index: 200;
-  width: min(90vw, 680px);
-  background: var(--glass-bg-strong);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  padding: 8px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  animation: kbSlideIn 0.18s ease-out;
+  gap: 10px;
+  width: min(94vw, 820px);
+  padding: 8px 12px 12px;
+  border: 1px solid color-mix(in srgb, #ffffff 10%, transparent);
+  border-radius: 22px;
+  background: rgba(10, 16, 34, 0.94);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 7%, transparent);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  font-family: var(--font-sans);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* O painel inteiro é alça de arraste (fora das teclas) — sem isso o
+     navegador tentaria rolar/zoom por baixo do dedo. */
+  touch-action: none;
+  cursor: grab;
+  animation: kbIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes kbSlideIn {
-  from { opacity: 0; transform: translateY(10px); }
+.dragging {
+  cursor: grabbing;
+  border-color: color-mix(in srgb, #f97316 45%, transparent);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 7%, transparent);
+}
+
+.dragging .grip {
+  background: #f97316;
+}
+
+@keyframes kbIn {
+  from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Arrastável — pega em qualquer ponto do cabeçalho, não só na alça (ícone é
- * só uma dica visual). touch-action:none evita o navegador tentar rolar a
- * página por baixo do dedo enquanto arrasta num painel touch. */
+/* ── Cabeçalho: alça de arraste + pré-visualização + fechar ─────────── */
 .header {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 2px 2px;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-.header:active { cursor: grabbing; }
-
-.dragHandle {
-  font-size: 13px;
-  line-height: 1;
-  color: var(--text-muted);
-  letter-spacing: -1px;
+  gap: 10px;
+  padding-top: 12px;
 }
 
-.title {
+.grip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 56px;
+  height: 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, #ffffff 18%, transparent);
+  transform: translateX(-50%);
+}
+
+.preview {
+  display: flex;
   flex: 1;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, #f97316 35%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, #ffffff 4%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #f97316 10%, transparent);
+}
+
+.previewIcon {
+  flex-shrink: 0;
+  color: #fdba74;
+}
+
+.previewText,
+.previewPlaceholder {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: pre;
+  font-size: 17px;
+}
+
+/* Texto longo: mostra o final (onde se está digitando), não o começo. */
+.previewText {
+  justify-content: flex-end;
+  color: #f5f8fc;
+  font-weight: 500;
+}
+
+.previewPlaceholder {
+  color: #64748b;
+}
+
+.previewMasked {
+  letter-spacing: 0.18em;
+}
+
+.caret {
+  flex-shrink: 0;
+  width: 2px;
+  height: 20px;
+  margin: 0 2px;
+  border-radius: 1px;
+  background: #f97316;
+  animation: blink 1.05s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
 }
 
 .closeBtn {
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  color: var(--text-muted);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s, transform 0.1s;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #ffffff 10%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, #ffffff 4%, transparent);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
-.closeBtn:hover  { background: var(--accent-bg); color: var(--text-primary); }
+
+.closeBtn:hover { background: color-mix(in srgb, #ffffff 9%, transparent); color: #f5f8fc; }
 .closeBtn:active { transform: scale(0.92); }
 
-/* Sobrescreve o tema padrão da lib (react-simple-keyboard) com os tokens do
- * app — as classes hg-* não são CSS Modules, por isso :global() aqui em vez
- * de mexer num CSS global do projeto. Teclas em ~48px: o padrão da lib é
- * pequeno demais para toque num painel grande. */
-.overlay :global(.simple-keyboard) {
-  background: transparent;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 0;
-  touch-action: manipulation;
-}
-.overlay :global(.hg-row) {
+/* ── Teclas ─────────────────────────────────────────────────────────── */
+.keys {
   display: flex;
-  gap: 7px;
-  margin-bottom: 7px;
+  flex-direction: column;
+  gap: 8px;
 }
-.overlay :global(.hg-row:last-child) { margin-bottom: 0; }
 
-.overlay :global(.hg-button) {
-  height: 48px;
-  min-width: 40px;
-  flex-grow: 1;
-  border-radius: var(--radius-sm);
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-bottom-width: 2px;
-  color: var(--text-primary);
-  font-size: 15px;
-  font-weight: 500;
-  box-shadow: var(--shadow-sm);
+.row {
   display: flex;
+  gap: 6px;
+}
+
+/* Fileira do meio levemente recuada, como num teclado de verdade. */
+.rowInset {
+  padding: 0 2.5%;
+}
+
+.key {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  height: 56px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #ffffff 8%, transparent);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #243150 0%, #1b2640 100%);
+  box-shadow:
+    0 2px 0 #0a1020,
+    inset 0 1px 0 color-mix(in srgb, #ffffff 9%, transparent);
+  color: #f5f8fc;
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 500;
+  text-transform: uppercase;
   cursor: pointer;
-  user-select: none;
-  transition: background 0.1s, border-color 0.1s, transform 0.06s, box-shadow 0.1s;
-}
-.overlay :global(.hg-button:hover) {
-  background: var(--accent-bg);
-  border-color: var(--glass-border);
-}
-.overlay :global(.hg-button:active),
-.overlay :global(.hg-button.hg-activeButton) {
-  background: var(--accent-bg);
-  border-color: var(--accent-soft);
-  color: var(--text-primary);
-  transform: translateY(1px);
-  box-shadow: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.06s ease, background 0.1s ease, box-shadow 0.06s ease;
 }
 
-/* Teclas de função (bksp, shift padrão da lib) — visualmente mais discretas
- * que as letras, mesma linguagem usada em teclados físicos/mobile. */
-.overlay :global(.hg-button.hg-functionBtn) {
-  color: var(--text-secondary);
-  font-size: 13px;
+/* Variante texto (login): mostra a caixa real — maiúscula só com shift. */
+.overlayText .key {
+  text-transform: none;
+}
+
+/* Shift ligado (uma letra) / travado (Caps). */
+.keyFn[data-shift='once'] {
+  color: #fdba74;
+}
+
+.keyFn[data-shift='lock'] {
+  border-color: color-mix(in srgb, #fb923c 55%, transparent);
+  background: linear-gradient(145deg, #f97316 0%, #c2410c 100%);
+  color: #fff;
+}
+
+/* Atalhos de texto (domínios de e-mail) acima das teclas. */
+.suggestions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.suggestion {
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, #f97316 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, #f97316 10%, transparent);
+  color: #fdba74;
+  font-family: var(--font-sans);
+  font-size: 14px;
   font-weight: 600;
-  background: var(--glass-border);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Espaço — bem mais largo, sem competir visualmente com as outras teclas. */
-.overlay :global(.hg-button[data-skbtn="{space}"]) {
-  flex-grow: 6;
+.suggestion:active {
+  background: color-mix(in srgb, #f97316 24%, transparent);
+  transform: scale(0.97);
 }
 
-/* ⇧ / #+= / ABC ativos (camada atual) — mesmo destaque de cor em todos, só
- * muda o texto: deixa claro pra quem está olhando qual "modo" está ligado. */
-.kbToggleActive {
-  background: var(--accent) !important;
-  border-color: var(--accent) !important;
-  color: #fff !important;
+.key[data-pressed] {
+  transform: translateY(2px);
+  background: linear-gradient(180deg, #2c3a5e 0%, #222f4d 100%);
+  box-shadow: 0 0 0 #0a1020, inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
 }
 
-/* #+= / ABC — toggle de camada de símbolos, sempre visível mesmo sem estar
- * ativo, com um tom levemente diferente das demais teclas de função. */
-.kbSpecial {
-  font-size: 12px !important;
-  font-weight: 700 !important;
+@media (hover: hover) {
+  .key:hover { background: linear-gradient(180deg, #2a3858 0%, #202c48 100%); }
+}
+
+.key:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
+/* Balão da tecla pressionada — aparece acima do dedo. */
+.bubble {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  height: 64px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, #f97316 50%, transparent);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #33456f 0%, #26365a 100%);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 600;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.key[data-pressed] .bubble {
+  display: flex;
+  animation: bubbleIn 0.08s ease-out;
+}
+
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translate(-50%, 6px) scale(0.9); }
+  to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+/* Teclas de função: tom mais escuro, texto menor. */
+.keyFn {
+  background: linear-gradient(180deg, #172036 0%, #121a2d 100%);
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 700;
   letter-spacing: 0.02em;
+  text-transform: none;
 }
 
-/* Buscar ↵ — ação principal do teclado, destacada na cor de destaque do app
- * em vez de se misturar com o resto (era cinza igual às outras antes). */
-.kbEnter {
-  background: var(--accent) !important;
-  border-color: var(--accent) !important;
-  color: #fff !important;
-  font-weight: 700 !important;
-  flex-grow: 2.4 !important;
+.keyFn[data-pressed] {
+  background: linear-gradient(180deg, #1f2a44 0%, #18223a 100%);
+  color: #f5f8fc;
 }
-.kbEnter:hover  { filter: brightness(1.08); }
-.kbEnter:active { filter: brightness(0.94); }
+
+.keyWide {
+  flex-grow: 1.5;
+}
+
+.keyClear {
+  flex-grow: 1.6;
+}
+
+.keySpace {
+  flex-grow: 5.5;
+}
+
+.spaceBar {
+  width: 30%;
+  max-width: 120px;
+  height: 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, #ffffff 22%, transparent);
+}
+
+/* Buscar — ação principal, laranja da marca. */
+.keyEnter {
+  flex-grow: 2.2;
+  border-color: color-mix(in srgb, #fb923c 55%, transparent);
+  background: linear-gradient(145deg, #f97316 0%, #c2410c 100%);
+  box-shadow:
+    0 2px 0 #7c2d12,
+    0 8px 22px color-mix(in srgb, #c2410c 40%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.keyEnter[data-pressed] {
+  background: linear-gradient(145deg, #ea6a0c 0%, #b23a0b 100%);
+  box-shadow: 0 0 0 #7c2d12, inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+@media (hover: hover) {
+  .keyEnter:hover { background: linear-gradient(145deg, #fb8a2e 0%, #c2410c 100%); }
+}
+
+@media (max-width: 640px) {
+  .overlay { padding: 6px 6px 8px; gap: 8px; border-radius: 18px; }
+  .row { gap: 4px; }
+  .keys { gap: 6px; }
+  .key { height: 46px; border-radius: 9px; font-size: 17px; }
+  .keyFn { font-size: 12px; }
+  .keyEnter { font-size: 14px; }
+  .preview { height: 40px; }
+  .closeBtn { width: 40px; height: 40px; }
+}

@@ -4,7 +4,6 @@ import { useRef, useState, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import CenterCard from '@/components/CenterCard/CenterCard';
 import SpaceBackground from '@/components/Globe/SpaceBackground';
-import { levelColors } from '@/data/orgData';
 import { useFsMode } from '@/lib/fsContext';
 import type { PositionedNode } from '@/types/orgChart';
 import type { Unidade } from '@/types/adminCore';
@@ -31,6 +30,8 @@ export interface UnidadeOverviewEntry {
 interface Props {
   directorsNode: PositionedNode | null;
   unidadesComGerentes: UnidadeOverviewEntry[];
+  /** Dicionário de cores por nível (GET /niveis_hierarquicos) — ver src/lib/data/niveisHierarquicos.ts. */
+  levelColors: Record<number, string>;
   error?: boolean;
 }
 
@@ -104,7 +105,7 @@ function useTrunkPath(stageRef: React.RefObject<HTMLDivElement | null>, director
   return path;
 }
 
-export default function OrganogramaOverview({ directorsNode, unidadesComGerentes, error = false }: Props) {
+export default function OrganogramaOverview({ directorsNode, unidadesComGerentes, levelColors, error = false }: Props) {
   const stageRef     = useRef<HTMLDivElement>(null);
   const directorsRef = useRef<HTMLDivElement>(null);
   const scrollRef    = useRef<HTMLDivElement>(null);
@@ -116,7 +117,7 @@ export default function OrganogramaOverview({ directorsNode, unidadesComGerentes
     <div className={styles.page}>
       <SpaceBackground />
 
-      <div className={`${styles.content} ${fsMode !== 'none' ? styles.shifted : ''}`}>
+      <div className={`${styles.content} ${fsMode === 'totem' ? styles.shifted : ''}`}>
       <p className={styles.prompt}>Organograma — visão geral</p>
 
       {error && <p className={styles.status}>Não foi possível carregar os dados.</p>}

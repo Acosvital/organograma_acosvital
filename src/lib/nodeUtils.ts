@@ -53,3 +53,9 @@ export function countSectorMembers(sectorId: string, allNodes: OrgNode[]): numbe
   const subtreeIds = collectSubtreeIds(sectorId, allNodes);
   return allNodes.filter(n => subtreeIds.has(n.id) && !n.isSector && n.id !== sectorId).length;
 }
+
+/** Minúsculas e sem acento — pra busca achar "João" digitando "joao" (o
+ *  teclado virtual do totem não tem teclas de acento). */
+export function normalizeSearch(value: string): string {
+  return value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}

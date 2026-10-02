@@ -1,12 +1,17 @@
 /**
- * Configuração estática dos níveis hierárquicos do organograma.
+ * Fallback local do dicionário de níveis hierárquicos — usado só se
+ * GET /niveis_hierarquicos falhar ou vier vazio (ver
+ * src/lib/data/niveisHierarquicos.ts e
+ * docs/organograma-integridade-schema.md, item 1). A fonte de verdade
+ * agora é a API, compartilhada com o av-hub; este dicionário existe
+ * apenas pra uma instabilidade nesse endpoint não derrubar o organograma.
  *
  * Nível 0  = Diretoria (centro)
  * Nível 1  = Gerência Geral
  * Nível 2  = Setor (nó estrutural, isSector=true)
  * Nível 3  = Sub-setor (nó estrutural, isSector=true, sempre nível 3)
  * Nível 4  = Diretor de Setor (pessoa, parentId=setor)
- * Níveis 5–11 = cargos dentro de setores, em ordem decrescente de senioridade
+ * Níveis 5–12 = cargos dentro de setores, em ordem decrescente de senioridade
  */
 export const levelNames: Record<number, string> = {
   0:  'Diretoria',
@@ -20,7 +25,8 @@ export const levelNames: Record<number, string> = {
   8:  'Líder de Equipe',
   9:  'Analista / Técnico',
   10: 'Assistente / Auxiliar',
-  11: 'Aprendiz',
+  11: 'Auxiliar / Estagiário',
+  12: 'Aprendiz',
 };
 
 export const levelColors: Record<number, string> = {
@@ -36,4 +42,5 @@ export const levelColors: Record<number, string> = {
   9:  '#10b981',  // emerald
   10: '#14b8a6',  // teal
   11: '#06b6d4',  // cyan
+  12: '#94a3b8',  // slate (nível mais júnior)
 };

@@ -1,0 +1,76 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: radial-gradient(ellipse at center, rgba(12, 19, 39, 0.78) 0%, rgba(2, 6, 23, 0.94) 70%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #f5f8fc;
+  font-family: var(--font-sans);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  animation: entrar 0.6s ease both;
+}
+
+.overlay:focus-visible {
+  outline: none;
+}
+
+@keyframes entrar {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.logo {
+  width: 220px;
+  height: auto;
+  margin-bottom: 24px;
+  pointer-events: none;
+}
+
+.ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 104px;
+  height: 104px;
+  border: 1px solid color-mix(in srgb, #c2410c 60%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, #c2410c 22%, #0c1327);
+  color: #fdba74;
+}
+
+.pulse {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid #c2410c;
+  border-radius: 50%;
+  animation: pulsar 2.2s ease-out infinite;
+}
+
+@keyframes pulsar {
+  from { transform: scale(1);   opacity: 0.8; }
+  to   { transform: scale(1.9); opacity: 0; }
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sub {
+  max-width: 520px;
+  color: #cbd5e1;
+  font-size: 1.125rem;
+}

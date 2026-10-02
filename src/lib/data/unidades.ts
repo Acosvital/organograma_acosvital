@@ -1,20 +1,25 @@
 import { fetchAllPages } from '@/lib/apiClient';
+import { EMPRESA_BUCKET } from '@/lib/s3Client';
 import type { Unidade } from '@/types/adminCore';
+
+const S3_BASE = (process.env.S3_ENDPOINT ?? '').replace(/\/$/, '');
+
+/**
+ * Resolve `unidade.foto_url` (vindo da API) pra uma URL exibível no card.
+ * O av-hub grava esse campo reaproveitando a key gerada pelo helper genérico
+ * de upload de foto — no formato "/api/fotos/<key>", convenção do bucket
+ * PRIVADO de pessoas dele. O bucket "empresa" (onde a foto de unidade
+ * realmente fica) é público (ver comentário em s3Client.ts), então aqui a
+ * URL final é direta pro S3, sem proxy de leitura autenticado.
+ */
+export function resolveFotoUrl(fotoUrl: string | null | undefined): string | undefined {
+  if (!fotoUrl) return undefined;
+  if (/^https?:\/\//i.test(fotoUrl)) return fotoUrl;
+  const key = fotoUrl.replace(/^\/api\/fotos\//, '');
+  return `${S3_BASE}/${EMPRESA_BUCKET}/${key}`;
+}
 
 /** Lista de unidades para a tela de seleção do organograma. */
 export function getUnidadesList(): Promise<Unidade[]> {
   return fetchAllPages<Unidade>('/unidades', 'unidades');
-}
-
-/** Resolve a Unidade correspondente ao segmento /admin/unidade/[codigo] dentro de uma lista já carregada.
- *  O segmento é o próprio Unidade.id — é também o valor gravado em
- *  Cargo.codigo_empresa / Setor.codigo_empresa / Funcionario.codigo_empresa. */
-export function resolveUnidade(unidades: Unidade[], codigo: string): Unidade | undefined {
-  return unidades.find(u => u.id === codigo);
-}
-
-/** Busca e resolve a Unidade correspondente ao segmento /admin/unidade/[codigo] da URL. */
-export async function findUnidadeByCodigo(codigo: string): Promise<Unidade | undefined> {
-  const unidades = await getUnidadesList().catch(() => []);
-  return resolveUnidade(unidades, codigo);
 }

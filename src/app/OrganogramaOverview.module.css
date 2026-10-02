@@ -25,7 +25,7 @@
    (12px + 68px colapsada) por cima do conteúdo — desloca pra não cobrir o
    card da diretoria, que fica coladinho na borda esquerda do palco. */
 .content.shifted {
-  padding-left: 100px;
+  padding-left: 116px;
 }
 
 .prompt {

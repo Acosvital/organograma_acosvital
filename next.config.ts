@@ -32,7 +32,7 @@ const securityHeaders = [
       // viacep: busca de endereço por CEP (admin de unidades/clientes). nominatim:
       // geocodificação (lat/lon) do endereço pra pin no globo — ambas chamadas
       // direto do navegador, então precisam estar liberadas aqui.
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} ${process.env.API_ACOSVITAL_URL ?? ''} https://viacep.com.br https://nominatim.openstreetmap.org`,
+      `connect-src 'self' ${process.env.API_ACOSVITAL_URL ?? ''} https://viacep.com.br https://nominatim.openstreetmap.org`,
       "frame-ancestors 'none'",
     ].join('; '),
   },

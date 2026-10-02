@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
-import { createClient } from '@/lib/supabase/server';
-import { getMyRole } from '@/lib/apiAuth';
+import { auth } from '@/lib/session';
+import { DEV_AUTH_BYPASS } from '@/lib/devAuth';
+import AuthProvider from '@/components/AuthProvider';
 import SidebarShell from '@/components/Sidebar/SidebarShell';
 import { LOGO_URL } from '@/lib/constants';
 import "./globals.css";
@@ -26,6 +27,12 @@ const spaceGrotesk = Space_Grotesk({
 // Define o tema antes da primeira pintura para evitar flash de tema incorreto.
 const THEME_INIT = `(function(){try{var t=localStorage.getItem('theme');if(t==='light')document.documentElement.dataset.theme='light';}catch(e){}})();`;
 
+// Mesmo truque pro modo de quiosque (Totem/TV, ver src/lib/kioskMode.ts):
+// marca o <html> antes da primeira pintura pra que o CSS esconda o menu
+// completo enquanto o SidebarShell ainda não restaurou o modo — sem isso,
+// cada recarga na TV/totem mostrava por um instante o menu com perfil/Sair.
+const KIOSK_INIT = `(function(){try{var q=new URLSearchParams(location.search).get('modo');var m=q==='tv'||q==='totem'?q:(q==='off'||q==='none')?null:localStorage.getItem('organograma:kioskMode');if(m==='tv'||m==='totem')document.documentElement.dataset.kiosk=m;}catch(e){}})();`;
+
 export const metadata: Metadata = {
   title: "Organograma — Acos Vital",
   description: "Estrutura organizacional em formato radial",
@@ -37,15 +44,16 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Papel via helper único (item 9); e-mail é best-effort para o rodapé da sidebar.
-  const role = await getMyRole();
-  const isAdmin = role === 'admin' || role === 'editor';
+  // E-mail é best-effort para o rodapé da sidebar.
   let userEmail: string | undefined;
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    userEmail = user?.email;
-  } catch {}
+  if (DEV_AUTH_BYPASS) {
+    userEmail = 'dev@local';
+  } else {
+    try {
+      const session = await auth();
+      userEmail = session?.user?.email ?? undefined;
+    } catch {}
+  }
 
   return (
     <html
@@ -55,6 +63,7 @@ export default async function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <script dangerouslySetInnerHTML={{ __html: KIOSK_INIT }} />
         {/* Fira Sans — fonte das labels geográficas no canvas do globo */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -64,9 +73,11 @@ export default async function RootLayout({
         />
       </head>
       <body suppressHydrationWarning>
-        <SidebarShell isAdmin={isAdmin} userEmail={userEmail}>
-          {children}
-        </SidebarShell>
+        <AuthProvider>
+          <SidebarShell userEmail={userEmail}>
+            {children}
+          </SidebarShell>
+        </AuthProvider>
       </body>
     </html>
   );

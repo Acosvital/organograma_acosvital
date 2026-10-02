@@ -29,6 +29,13 @@ export interface PositionedNode extends OrgNode {
   y: number;
   angle: number;
   radius: number; // visual radius (pre-computed at layout time)
+  /** Coluna do modo coluna (ver calculateEvenSectorLayout) a que o nó pertence,
+   *  só quando a coluna tem 2+ pessoas. São colegas do mesmo chefe empilhados
+   *  pra fora — o desenho envolve a coluna numa cápsula e liga só a 1ª linha
+   *  ao chefe, em vez de ligar uma pessoa à seguinte (o que parecia chefia). */
+  columnGroupId?: string;
+  /** Posição na coluna: 0 = mais perto do chefe. */
+  columnRow?: number;
 }
 
 export interface Connection {

@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 // organograma (guard abaixo) consegue ver as fotos, e as credenciais do S3
 // nunca chegam ao navegador.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ key: string[] }> }) {
-  const { error } = await guard(request, { role: 'viewer' });
+  const { error } = await guard(request);
   if (error) return error;
 
   const { key } = await params;

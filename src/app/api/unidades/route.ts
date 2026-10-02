@@ -6,10 +6,9 @@ import { getUnidadesList } from '@/lib/data/unidades';
 export const dynamic = 'force-dynamic';
 
 // Lista de unidades para a tela de seleção do organograma — acessível a
-// qualquer usuário logado (viewer), diferente de /api/admin/unidades-rh que
-// exige papel de editor.
+// qualquer usuário logado.
 export async function GET(request: NextRequest) {
-  const { error } = await guard(request, { role: 'viewer' });
+  const { error } = await guard(request);
   if (error) return error;
 
   try {
