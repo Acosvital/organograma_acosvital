@@ -14,36 +14,45 @@
 }
 
 /* ── Busca ── */
+/* Abaixo da barra do OrgChart (voltar + interruptor Mapa/Lista), que fica
+   no topo à esquerda — mesmo visual da busca do mapa. */
 .searchWrap {
   position: relative;
   display: flex;
   align-items: center;
-  margin: 20px auto 8px;
+  margin: 88px auto 8px;
   width: min(560px, calc(100% - 40px));
 }
 
 .searchIcon {
   position: absolute;
-  left: 14px;
-  color: var(--text-muted);
+  left: 16px;
+  z-index: 1;
+  color: #64748b;
   pointer-events: none;
 }
 
 .search {
   width: 100%;
-  padding: 11px 38px 11px 38px;
-  font-size: 14px;
+  height: 52px;
+  padding: 0 44px;
+  font-size: 15px;
   font-family: inherit;
-  color: var(--text-primary);
-  background: var(--glass-bg);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
+  color: #f5f8fc;
+  background: rgba(12, 19, 39, 0.82);
+  border: 1px solid color-mix(in srgb, #ffffff 10%, transparent);
+  border-radius: 16px;
   outline: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   transition: border-color var(--ease-fast), box-shadow var(--ease-fast);
 }
-.search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+.search:focus {
+  border-color: color-mix(in srgb, #f97316 70%, transparent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 0 4px color-mix(in srgb, #f97316 18%, transparent);
+}
+.searchWrap:focus-within .searchIcon { color: #fdba74; }
 .search::placeholder { color: var(--text-muted); }
 
 .clear {
