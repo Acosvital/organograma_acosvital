@@ -24,6 +24,9 @@ export default function SidebarShell({ userEmail, children }: Props) {
   const router = useRouter();
 
   const [mode, setModeState] = useState<FsMode>('none');
+  // Só depois de ler o modo salvo dá pra mexer no data-kiosk do <html> —
+  // antes disso ele vem do script KIOSK_INIT do layout e não pode ser apagado.
+  const [restored, setRestored] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Restaura o modo salvo no aparelho; `?modo=` na URL tem prioridade e é
@@ -37,6 +40,7 @@ export default function SidebarShell({ userEmail, children }: Props) {
       router.replace(url.pathname + url.search + url.hash);
     }
     setModeState(fromUrl ?? readStoredMode());
+    setRestored(true);
     // só na montagem
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -63,6 +67,7 @@ export default function SidebarShell({ userEmail, children }: Props) {
   // Marca o <html> pros estilos globais de quiosque (sem seleção de texto,
   // sem menu de contexto do toque longo, cursor oculto no modo TV).
   useEffect(() => {
+    if (!restored) return;
     const root = document.documentElement;
     if (mode === 'none') delete root.dataset.kiosk;
     else root.dataset.kiosk = mode;
@@ -70,7 +75,7 @@ export default function SidebarShell({ userEmail, children }: Props) {
     const noMenu = (e: Event) => e.preventDefault();
     window.addEventListener('contextmenu', noMenu);
     return () => window.removeEventListener('contextmenu', noMenu);
-  }, [mode]);
+  }, [mode, restored]);
 
   // Fecha sidebar mobile ao mudar de rota
   useEffect(() => { setMobileOpen(false); }, [pathname]);
@@ -102,6 +107,7 @@ export default function SidebarShell({ userEmail, children }: Props) {
       {!isKiosk && mobileOpen && (
         <div
           key="backdrop"
+          data-kiosk-hide
           className={styles.backdrop}
           onClick={closeMobile}
           aria-hidden="true"
@@ -112,6 +118,7 @@ export default function SidebarShell({ userEmail, children }: Props) {
       {!isKiosk && (
         <button
           key="menuBtn"
+          data-kiosk-hide
           className={`${styles.menuBtn} ${mobileOpen ? styles.menuBtnOpen : ''}`}
           onClick={() => setMobileOpen(o => !o)}
           aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'}

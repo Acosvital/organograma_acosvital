@@ -136,6 +136,9 @@ function LoginForm({ onKeyboardChange }: { onKeyboardChange?: (open: boolean) =>
             // Com o teclado virtual preferido, não deixa o nativo subir junto.
             inputMode={virtualPreferred ? 'none' : 'email'}
             onFocus={() => { if (virtualPreferred) setKbField('email'); else if (kbField) setKbField('email'); }}
+            // O campo continua focado depois de fechar o teclado — tocar de
+            // novo não dispara onFocus, e com inputMode="none" nada abriria.
+            onClick={() => { if (virtualPreferred) setKbField('email'); }}
             // Digitou num teclado físico de verdade: o virtual sai da frente.
             onKeyDown={() => setKbField(null)}
             required
@@ -166,6 +169,7 @@ function LoginForm({ onKeyboardChange }: { onKeyboardChange?: (open: boolean) =>
             autoComplete="current-password"
             inputMode={virtualPreferred ? 'none' : 'text'}
             onFocus={() => { if (virtualPreferred) setKbField('password'); else if (kbField) setKbField('password'); }}
+            onClick={() => { if (virtualPreferred) setKbField('password'); }}
             onKeyDown={() => setKbField(null)}
             required
           />

@@ -74,11 +74,15 @@ export default function TvPlayer({ onExit }: Props) {
 
   // Começa (ou retoma após recarregar) pela tela em que já está; se a tela
   // atual não faz parte da apresentação, vai pra primeira.
+  // Espera a lista de unidades (exceto na visão geral, que é sempre a etapa
+  // 0): as etapas das unidades entram no meio da lista, então uma posição
+  // calculada antes apontaria pra outra tela depois — recarregar em
+  // /unidades fazia a TV pular na hora pro organograma da 1ª unidade.
   useEffect(() => {
     if (index !== null) return;
+    if (!loaded && pathname !== '/') return;
     const found = steps.findIndex((s) => s.href === pathname);
-    if (found >= 0) setIndex(found);
-    else if (loaded || !pathname.startsWith('/organograma/')) setIndex(0);
+    setIndex(found >= 0 ? found : 0);
   }, [steps, pathname, index, loaded]);
 
   const current = index !== null ? steps[index % steps.length] : null;

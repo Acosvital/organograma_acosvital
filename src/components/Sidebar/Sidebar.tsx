@@ -461,7 +461,7 @@ function SidebarCompleta({
 
   return (
     <>
-      <aside className={cls} aria-label="Navegação principal">
+      <aside className={cls} aria-label="Navegação principal" data-kiosk-hide>
         {!tablet && (
           <button
             type="button"

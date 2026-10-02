@@ -238,3 +238,9 @@ html[data-tv-idle],
 html[data-tv-idle] * {
   cursor: none !important;
 }
+
+/* Antes do SidebarShell restaurar o modo salvo (ver KIOSK_INIT no layout),
+ * o menu completo e o hamburguer não aparecem num aparelho de quiosque. */
+html[data-kiosk] [data-kiosk-hide] {
+  display: none !important;
+}
