@@ -3,7 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import AzureADProvider from 'next-auth/providers/azure-ad';
 import { apiPost, apiGet, ApiError } from '@/lib/apiClient';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import type { MenuItem } from '@/lib/permissions';
+import { compactMenu, type MenuItem } from '@/lib/permissions';
 
 interface MenuResponse {
   usuario: { id: string; email: string; username: string; photo_url: string | null };
@@ -78,7 +78,7 @@ export const authOptions: AuthOptions = {
         if (idUsuario) {
           const userSession = await fetchMenu(idUsuario);
           token.id_usuario = idUsuario;
-          token.menu = userSession?.menu ?? [];
+          token.menu = compactMenu(userSession?.menu ?? []);
         }
       }
 
@@ -87,8 +87,13 @@ export const authOptions: AuthOptions = {
         token.id_usuario = user.id;
         const userSession = await fetchMenu(user.id);
         token.email = userSession?.usuario.email ?? token.email;
-        token.menu = userSession?.menu ?? [];
+        token.menu = compactMenu(userSession?.menu ?? []);
       }
+
+      // Sessões criadas antes desta correção ainda carregam a árvore inteira
+      // do Hub no cookie — enxuga em toda renovação do token, pra o cookie
+      // encolher sozinho sem precisar de novo login.
+      if (token.menu?.length) token.menu = compactMenu(token.menu);
 
       return token;
     },

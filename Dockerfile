@@ -24,6 +24,12 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+# Limite de cabeçalho maior que o padrão do Node (16 KB): o domínio é
+# compartilhado com outros sistemas da Aços Vital, cujos cookies também vêm
+# em cada requisição. Com o padrão, cookies grandes davam HTTP 431 antes de
+# o app conseguir responder (e, portanto, antes de poder renovar/encolher o
+# cookie de sessão).
+ENV NODE_OPTIONS=--max-http-header-size=65536
 
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
