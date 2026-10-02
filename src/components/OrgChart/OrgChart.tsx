@@ -471,6 +471,35 @@ export default function OrgChart({
     return { managerId: sectorDetail.hubManagerId, managerPos, ringR };
   }, [sectorDetail, activeSectorId]);
 
+  // Cápsulas das colunas: colegas do mesmo chefe empilhados pra fora (modo
+  // coluna do layout) ficam envoltos numa faixa única, e só a 1ª linha ganha
+  // traço até o chefe — ver columnGroupId em calculateEvenSectorLayout. A
+  // faixa vai do centro da 1ª à última pessoa, com folga pro brilho do card.
+  const detailCapsules = useMemo(() => {
+    if (!sectorDetail) return [];
+    const groups = new Map<string, PositionedNode[]>();
+    sectorDetail.pos.forEach((p) => {
+      if (p.columnGroupId === undefined) return;
+      if (!groups.has(p.columnGroupId)) groups.set(p.columnGroupId, []);
+      groups.get(p.columnGroupId)!.push(p);
+    });
+    return [...groups.entries()].map(([id, members]) => {
+      members.sort((a, b) => (a.columnRow ?? 0) - (b.columnRow ?? 0));
+      const first = members[0];
+      const last = members[members.length - 1];
+      const half = Math.max(...members.map((m) => m.radius)) + 9;
+      return {
+        id,
+        cx: (first.x + last.x) / 2,
+        cy: (first.y + last.y) / 2,
+        length: Math.hypot(last.x - first.x, last.y - first.y) + 2 * half,
+        half,
+        deg: (Math.atan2(last.y - first.y, last.x - first.x) * 180) / Math.PI,
+        level: first.level,
+      };
+    });
+  }, [sectorDetail]);
+
   const detailSubSectors = useMemo(
     () => visibleDetailOthers.filter((n) => n.isSector),
     [visibleDetailOthers],
@@ -1886,6 +1915,27 @@ export default function OrgChart({
               {/* ── SECTOR DETAIL MODE ────────────────────────────────────── */}
               {activeSectorId && sectorDetail && detailCenter && (
                 <g key={activeSectorId} className={styles.contentGroup}>
+                  {/* Cápsulas das colunas de colegas (atrás das linhas e dos cards) */}
+                  {detailCapsules.map((c) => {
+                    const color = levelColors[c.level] ?? "#fff";
+                    return (
+                      <rect
+                        key={c.id}
+                        x={c.cx - c.length / 2}
+                        y={c.cy - c.half}
+                        width={c.length}
+                        height={2 * c.half}
+                        rx={c.half}
+                        transform={`rotate(${c.deg} ${c.cx} ${c.cy})`}
+                        fill={color}
+                        fillOpacity={0.07}
+                        stroke={color}
+                        strokeOpacity={0.35}
+                        strokeWidth={1.2}
+                      />
+                    );
+                  })}
+
                   {/* Normal connections — manager→sub-sector edges are suppressed when
                       hub-and-spoke is active (replaced below by ring circle + spoke). */}
                   {renderConnections(
