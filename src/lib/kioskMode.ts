@@ -58,3 +58,16 @@ export async function exitFullscreen() {
     await document.exitFullscreen();
   } catch {}
 }
+
+// ── Modo TV: conversa entre o TvPlayer e a tela que está no ar ───────────
+// Uma tela com apresentação própria (ex.: o passeio da câmera pelos setores
+// no OrgChart) avisa quanto tempo precisa e quando terminou; o TvPlayer
+// avisa quando foi pausado. Eventos de window porque o TvPlayer é irmão do
+// conteúdo no SidebarShell, não ancestral (sem contexto em comum).
+
+/** detail: { href: string; ms: number } — a tela pede `ms` de duração. */
+export const TV_STEP_EVENT = 'organograma:tv-step';
+/** detail: { href: string } — a tela terminou sua apresentação. */
+export const TV_DONE_EVENT = 'organograma:tv-done';
+/** detail: { paused: boolean } — o TvPlayer pausou/continuou. */
+export const TV_PAUSE_EVENT = 'organograma:tv-pause';

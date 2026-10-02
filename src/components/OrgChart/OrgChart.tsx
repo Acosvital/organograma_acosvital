@@ -7,6 +7,7 @@ import SectorCard from "@/components/SectorCard/SectorCard";
 import { useFsMode } from "@/lib/fsContext";
 import OnScreenKeyboard from "@/components/OnScreenKeyboard/OnScreenKeyboard";
 import { normalizeSearch } from "@/lib/nodeUtils";
+import { TV_DONE_EVENT, TV_PAUSE_EVENT, TV_STEP_EVENT } from "@/lib/kioskMode";
 import { Connection, OrgNode, PositionedNode } from "@/types/orgChart";
 import {
   OVERVIEW_NODE_RADIUS,
@@ -1545,6 +1546,118 @@ export default function OrgChart({
   // busca/Mapa-Lista, zoom, mini-mapa e as dicas de gesto. A legenda fica,
   // porque informa.
   const isTv = fsMode === 'tv';
+
+  // ── Modo TV: passeio automático da câmera ─────────────────────────────
+  // Em vez de ficar parado na visão geral, a câmera passeia sozinha:
+  // visão geral → para cada setor (no sentido horário, a partir do topo):
+  // voa até ele no anel, abre a equipe e aproxima devagar → volta à visão
+  // geral. Só setores com gente (abrir um setor vazio não mostra nada).
+  // Avisa o TvPlayer quanto tempo precisa (TV_STEP_EVENT) e quando terminou
+  // (TV_DONE_EVENT); para junto quando a TV é pausada (TV_PAUSE_EVENT).
+  const tourSectors = useMemo(() => {
+    if (!isTv || !unidadeId) return [];
+    const angle = (p: PositionedNode) => {
+      const a = Math.atan2(p.x, -p.y); // 0 no topo, crescendo no sentido horário
+      return a < 0 ? a + Math.PI * 2 : a;
+    };
+    return overviewSectors
+      .filter((sec) => {
+        const canon = sec.id.startsWith("sec-") ? sec.id.slice(4) : sec.id;
+        return getSubtree(canon, mergedNodes).some((n) => !n.isSector);
+      })
+      .sort((a, b) => angle(a) - angle(b));
+  }, [isTv, unidadeId, overviewSectors, mergedNodes]);
+
+  // Recomeça o passeio só se a lista de setores mudar de verdade (não a
+  // cada nova referência do array depois de um refresh dos dados).
+  const tourKey = tourSectors.map((p) => p.id).join("|");
+  const tourSectorsRef = useRef(tourSectors);
+  tourSectorsRef.current = tourSectors;
+
+  useEffect(() => {
+    if (!isTv || !mounted || !tourKey) return;
+    const sectors = tourSectorsRef.current;
+    const OVERVIEW_MS = 5000;   // visão geral no começo
+    const FLY_MS = 2600;        // volta à visão geral + voo até o setor no anel
+    const TEAM_MS = 5200;       // equipe do setor na tela
+    const END_MS = 3500;        // visão geral no fim
+
+    const inner: ReturnType<typeof setTimeout>[] = [];
+    const later = (fn: () => void, ms: number) => { inner.push(setTimeout(fn, ms)); };
+
+    type Step = { ms: number; run: () => void };
+    const steps: Step[] = [{ ms: OVERVIEW_MS, run: () => { setSectorStack([]); animateTo(OVERVIEW_VB, 900); } }];
+    for (const sec of sectors) {
+      steps.push({
+        ms: FLY_MS,
+        run: () => {
+          setHighlightId(null);
+          setSectorStack([]); // o efeito de troca de vista anima até a visão geral (700ms)
+          later(() => {
+            const W = 460;
+            animateTo({ x: sec.x - W / 2, y: sec.y - W / 2, w: W, h: W }, 1300);
+            setHighlightId(sec.id);
+          }, 800);
+        },
+      });
+      steps.push({
+        ms: TEAM_MS,
+        run: () => {
+          setHighlightId(null);
+          openSector(sec.id); // o efeito de troca de vista enquadra a equipe (700ms)
+          // …e depois aproxima devagar, pra tela não ficar parada.
+          later(() => {
+            const c = vbRef.current;
+            const k = 0.84;
+            animateTo(
+              { x: c.x + (c.w * (1 - k)) / 2, y: c.y + (c.h * (1 - k)) / 2, w: c.w * k, h: c.h * k },
+              TEAM_MS - 1000,
+            );
+          }, 800);
+        },
+      });
+    }
+    steps.push({ ms: END_MS, run: () => { setHighlightId(null); setSectorStack([]); } });
+
+    const href = window.location.pathname;
+    const total = steps.reduce((t, st) => t + st.ms, 0);
+    window.dispatchEvent(new CustomEvent(TV_STEP_EVENT, { detail: { href, ms: total } }));
+
+    let i = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let paused = false;
+    const schedule = () => {
+      timer = setTimeout(() => {
+        i += 1;
+        if (i >= steps.length) {
+          window.dispatchEvent(new CustomEvent(TV_DONE_EVENT, { detail: { href } }));
+          return;
+        }
+        steps[i].run();
+        schedule();
+      }, steps[i].ms);
+    };
+    steps[0].run();
+    schedule();
+
+    // Pausa: congela no passo atual; ao continuar, o passo atual recomeça a
+    // contar do zero (o TvPlayer também reinicia a barra ao continuar).
+    const onPause = (e: Event) => {
+      const next = !!(e as CustomEvent<{ paused: boolean }>).detail?.paused;
+      if (next === paused) return;
+      paused = next;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (!paused && i < steps.length) schedule();
+    };
+    window.addEventListener(TV_PAUSE_EVENT, onPause);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      inner.forEach(clearTimeout);
+      window.removeEventListener(TV_PAUSE_EVENT, onPause);
+    };
+  }, [isTv, mounted, tourKey, animateTo, openSector]);
 
   // ── Tier 3: tilt 3D sutil seguindo o mouse ────────────────────────────
   // Atualiza o transform diretamente no DOM — sem setState para evitar re-renders.

@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import HoldButton from './HoldButton';
+import { TV_DONE_EVENT, TV_PAUSE_EVENT, TV_STEP_EVENT } from '@/lib/kioskMode';
 import styles from './TvPlayer.module.css';
 
 /** Quanto tempo cada tela fica no ar antes de passar pra próxima. */
@@ -87,6 +88,11 @@ export default function TvPlayer({ onExit }: Props) {
 
   const current = index !== null ? steps[index % steps.length] : null;
 
+  // Duração pedida pela própria tela (ex.: o passeio pelos setores no
+  // organograma de uma unidade leva mais que os 45 s padrão).
+  const [override, setOverride] = useState<{ href: string; ms: number } | null>(null);
+  const stepMs = current && override?.href === current.href ? override.ms : current?.ms ?? 0;
+
   useEffect(() => {
     if (current && current.href !== pathname) router.push(current.href);
     // só reage à troca de etapa — não a navegações internas da página
@@ -99,9 +105,41 @@ export default function TvPlayer({ onExit }: Props) {
 
   useEffect(() => {
     if (!current || paused) return;
-    const id = setTimeout(() => go(1), current.ms);
+    const id = setTimeout(() => go(1), stepMs);
     return () => clearTimeout(id);
-  }, [current, paused, go, index, runId]);
+  }, [current, stepMs, paused, go, index, runId]);
+
+  // A tela no ar pede outra duração (reinicia timer e barra a partir de
+  // agora) ou avisa que terminou a apresentação dela (passa pra próxima).
+  const currentHref = current?.href;
+  useEffect(() => {
+    const onStep = (e: Event) => {
+      const d = (e as CustomEvent<{ href: string; ms: number }>).detail;
+      if (!d?.href || !(d.ms > 0)) return;
+      // Guarda mesmo se ainda não for a etapa atual: depois de recarregar
+      // direto numa unidade, a tela pede a duração antes do TvPlayer saber
+      // em que etapa está (ele espera a lista de unidades).
+      setOverride({ href: d.href, ms: d.ms });
+      if (d.href === currentHref) setRunId((n) => n + 1);
+    };
+    const onDone = (e: Event) => {
+      const d = (e as CustomEvent<{ href: string }>).detail;
+      if (d?.href === currentHref && !pausedRef.current) go(1);
+    };
+    window.addEventListener(TV_STEP_EVENT, onStep);
+    window.addEventListener(TV_DONE_EVENT, onDone);
+    return () => {
+      window.removeEventListener(TV_STEP_EVENT, onStep);
+      window.removeEventListener(TV_DONE_EVENT, onDone);
+    };
+  }, [currentHref, go]);
+
+  // Avisa a tela no ar quando pausa/continua (o passeio da câmera para junto).
+  const pausedRef = useRef(paused);
+  useEffect(() => {
+    pausedRef.current = paused;
+    window.dispatchEvent(new CustomEvent(TV_PAUSE_EVENT, { detail: { paused } }));
+  }, [paused]);
 
   const togglePause = useCallback(() => {
     setPaused((p) => {
@@ -188,7 +226,7 @@ export default function TvPlayer({ onExit }: Props) {
           <div
             key={`${pos}-${current.href}-${runId}`}
             className={styles.progress}
-            style={{ animationDuration: `${current.ms}ms`, animationPlayState: paused ? 'paused' : 'running' }}
+            style={{ animationDuration: `${stepMs}ms`, animationPlayState: paused ? 'paused' : 'running' }}
           />
         </div>
       </div>
