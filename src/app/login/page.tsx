@@ -114,8 +114,12 @@ export default function LoginPage() {
     <div className={styles.page}>
       <div className={styles.card}>
         <div className={styles.header}>
-          <img src={LOGO_URL} alt="Açosvital" className={styles.logo} />
-          <h1 className={styles.title}>Bem-vindo ao Organograma</h1>
+          <div className={styles.brand}>
+            <img src={LOGO_URL} alt="Açosvital" className={styles.logo} />
+            <span className={styles.brandSep} aria-hidden="true" />
+            <span className={styles.brandName}>Organograma</span>
+          </div>
+          <h1 className={styles.title}>Bem-vindo</h1>
           <p className={styles.sub}>Acesse sua conta corporativa para continuar</p>
         </div>
 
