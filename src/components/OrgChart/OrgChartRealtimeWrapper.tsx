@@ -78,6 +78,14 @@ const GM_MANUAL_ORDER: Record<string, number> = {
   '1a057366-3183-4772-ae95-4a848710cac4': 1, // João Vitor Martins Venâncio (Aços Vital) — abaixo
 };
 
+// Mesma ideia, pro anel da Diretoria Executiva (nível 13): quem fica "em cima"
+// (índice 0 = topo). Esse anel é global — mostra os mesmos executivos em todas as
+// empresas — então a ordem é uma só, valendo pra todas.
+const EXEC_MANUAL_ORDER: Record<string, number> = {
+  '57fea57b-334a-4547-9b8e-867f5c9e1f98': 0, // Sergio Vital (Diretor de Suprimentos) — acima
+  '7541b094-4a7b-45da-9ed8-4bcd2ac32211': 1, // Everaldo Oliveira de Souza (Diretor Comercial) — abaixo
+};
+
 export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], levelColors, levelNames, levelOrder }: Props) {
   const [nodes, setNodes]         = useState<OrgNode[]>(initialNodes);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -88,14 +96,23 @@ export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], 
       (n.level <= 2 || n.level === NIVEL_DIRETORIA_EXECUTIVA) &&
       (n.isSector || isNivelGlobal(n.level) || n.unidadeId === unidadeId),
     );
-    // Sort estável: só reordena o anel de Gerência Geral entre si (via
-    // GM_MANUAL_ORDER); todo o resto mantém a posição relativa original.
-    return [...filtered].sort((a, b) => {
-      if (a.level !== 1 || b.level !== 1) return 0;
-      const oa = GM_MANUAL_ORDER[a.id] ?? Number.MAX_SAFE_INTEGER;
-      const ob = GM_MANUAL_ORDER[b.id] ?? Number.MAX_SAFE_INTEGER;
-      return oa - ob;
-    });
+    // Ordem manual dentro do anel de Gerência Geral (GM_MANUAL_ORDER) e do anel da
+    // Diretoria Executiva (EXEC_MANUAL_ORDER). A chave é completa — (nível, ordem
+    // manual, posição original) —, então o resultado não depende de o sort ser
+    // estável nem de o comparador ser consistente entre níveis diferentes (um
+    // comparador que devolve 0 pra pares de níveis distintos não é uma ordem total e
+    // deixava a ordem manual sem efeito). calculateOverviewLayout agrupa por nível,
+    // então a ordem entre níveis não importa; dentro do nível o desempate é a
+    // posição original (setores e quem não está no mapa mantêm a ordem da API).
+    const manual = (n: OrgNode): number => {
+      const mapa =
+        n.level === 1 ? GM_MANUAL_ORDER : n.level === NIVEL_DIRETORIA_EXECUTIVA ? EXEC_MANUAL_ORDER : null;
+      return mapa?.[n.id] ?? Number.MAX_SAFE_INTEGER;
+    };
+    return filtered
+      .map((n, i) => ({ n, i }))
+      .sort((x, y) => x.n.level - y.n.level || manual(x.n) - manual(y.n) || x.i - y.i)
+      .map(({ n }) => n);
   }, [nodes, unidadeId]);
   const positions = useMemo(
     // Distribute each level evenly across the full 360°, independent of tree structure.
