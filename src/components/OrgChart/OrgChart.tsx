@@ -9,7 +9,9 @@ import OnScreenKeyboard from "@/components/OnScreenKeyboard/OnScreenKeyboard";
 import { normalizeSearch } from "@/lib/nodeUtils";
 import { TV_DONE_EVENT, TV_PAUSE_EVENT, TV_STEP_EVENT } from "@/lib/kioskMode";
 import { Connection, OrgNode, PositionedNode } from "@/types/orgChart";
+import { ordemDoNivel } from "@/data/orgData";
 import {
+  NIVEL_DIRETORIA_EXECUTIVA,
   OVERVIEW_NODE_RADIUS,
   SECTOR_NODE_RADIUS,
   SECTOR_RING_RADII,
@@ -17,6 +19,8 @@ import {
   calculateEvenSectorLayout,
   debugWedges,
   getSubtree,
+  isNivelGlobal,
+  overviewRingRadii,
 } from "@/utils/radialLayout";
 import { colorGradientId, radiusClipId } from "@/utils/svgDefs";
 import { mergeDirectors } from "@/utils/mergeDirectors";
@@ -46,6 +50,8 @@ interface Props {
   // Full raw data for sector drill-down
   allNodes: OrgNode[];
   levelNames: Record<number, string>;
+  /** nivel → posição na hierarquia (coluna `ordem` da API). */
+  levelOrder: Record<number, number>;
   levelColors: Record<number, string>;
   /** Unidade sendo exibida — usada para filtrar pessoas de outras unidades. */
   unidadeId?: string;
@@ -69,7 +75,13 @@ const MAX_W_OV = 1500;
 const MIN_W_SC = 150;
 const MAX_W_SC = 6000; // ring 8 radius=1590 → full diameter ~3400; allow zooming out further
 const CULL_MARGIN = 120;
-const SPINE_R = 430; // Management ring sits on the sector ring (r=430)
+// Folga entre o anel dos setores e a borda da visão geral (card do setor + rótulo).
+const OVERVIEW_VB_MARGIN = 110;
+/** viewBox da visão geral: quadrado centrado, folga fixa além do anel dos setores. */
+function overviewViewBox(sectorRingR: number): ViewBox {
+  const half = sectorRingR + OVERVIEW_VB_MARGIN;
+  return { x: -half, y: -half, w: half * 2, h: half * 2 };
+}
 
 // ── Orbital intro animation ──────────────────────────────────────────────────
 const ORB_DIR_R = 92; // orbit clearance around director card (card r=78)
@@ -103,6 +115,7 @@ export default function OrgChart({
   connections,
   allNodes,
   levelNames,
+  levelOrder,
   levelColors,
   unidadeId,
 }: Props) {
@@ -247,11 +260,12 @@ export default function OrgChart({
 
   // Nós completos = allNodes (já vem com a árvore inteira desde o fetch inicial,
   // via SSR ou pelo /api/org?unidade_id=). Filtra pessoas de outra unidade aqui.
-  // Só a Diretoria (nível 0) é papel global e sempre aparece — Gerência Geral
-  // (nível 1) e demais pessoas são filtradas pela unidade de cada uma.
+  // Só a Diretoria (nível 0) e a Diretoria Executiva (nível 13) são papéis globais e
+  // sempre aparecem (ver isNivelGlobal) — Gerência Geral (nível 1) e demais pessoas
+  // são filtradas pela unidade de cada uma.
   const mergedNodes = useMemo(() => {
     if (!unidadeId) return allNodes;
-    return allNodes.filter((n) => n.isSector || n.level === 0 || n.unidadeId === unidadeId);
+    return allNodes.filter((n) => n.isSector || isNivelGlobal(n.level) || n.unidadeId === unidadeId);
   }, [allNodes, unidadeId]);
 
   // Cores distintas em uso (níveis fixos + cor custom de cada setor) — usadas para
@@ -323,10 +337,21 @@ export default function OrgChart({
     return { pos, conn, hubManagerId, wedges };
   }, [activeSectorId, mergedNodes]);
 
+  // Diretoria Executiva (nível 13): anel entre a Diretoria e a Gerência Geral.
+  // Só existe quando alguém está cadastrado nesse nível — sem ninguém, os raios
+  // são os de sempre (ver overviewRingRadii).
+  const overviewExecs = useMemo(
+    () => positions.filter((p) => p.level === NIVEL_DIRETORIA_EXECUTIVA),
+    [positions],
+  );
+  const hasExec = overviewExecs.length > 0;
+  const ovRadii = useMemo(() => overviewRingRadii(hasExec), [hasExec]);
+  const SPINE_R = ovRadii[2]; // anel dos setores
+  const overviewVb = useMemo(() => overviewViewBox(SPINE_R), [SPINE_R]);
   // Animate viewBox when switching views — fit to content for sector detail
   useEffect(() => {
     if (!activeSectorId) {
-      animateTo(OVERVIEW_VB, 700);
+      animateTo(overviewVb, 700);
       return;
     }
     if (!sectorDetail) return;
@@ -339,7 +364,7 @@ export default function OrgChart({
     // ficarem perdidos numa viewbox grande; teto preserva o caso de setores enormes.
     const size = Math.min(Math.max(maxR * 2 + 200, 1200), 4000);
     animateTo({ x: -size / 2, y: -size / 2, w: size, h: size }, 700);
-  }, [activeSectorId, sectorDetail, animateTo]);
+  }, [activeSectorId, sectorDetail, animateTo, overviewVb]);
 
   // ── Overview derived data ─────────────────────────────────────────────
   const overviewDirectors = useMemo(
@@ -352,10 +377,6 @@ export default function OrgChart({
   );
   const overviewSectors = useMemo(
     () => positions.filter((p) => p.isSector),
-    [positions],
-  );
-  const maxLevel = useMemo(
-    () => positions.reduce((m, p) => Math.max(m, p.level), 0),
     [positions],
   );
   const overviewPosMap = useMemo(
@@ -397,14 +418,27 @@ export default function OrgChart({
   // ângulo avança. Alimenta tanto os cards quanto as conexões/arc-spines
   // abaixo, para que tudo (card, linha até a diretoria, arco até os
   // setores) se mova junto e nada fique "desgrudado" durante o giro.
-  const rotatedGMs = useMemo(() => {
-    if (gmOrbitAngle === 0) return overviewGMs;
-    return overviewGMs.map((gm) => {
-      const r = Math.sqrt(gm.x * gm.x + gm.y * gm.y);
-      const angle = Math.atan2(gm.y, gm.x) + gmOrbitAngle;
-      return { ...gm, x: Math.cos(angle) * r, y: Math.sin(angle) * r, angle };
+  // Quem orbita: com a Diretoria Executiva, é o anel DELA que gira e a Gerência
+  // Geral fica parada; sem o anel executivo, a Gerência Geral continua girando
+  // como sempre (a tela não muda enquanto ninguém está no nível 13).
+  const orbitNodes = (nodes: PositionedNode[]) => {
+    if (gmOrbitAngle === 0) return nodes;
+    return nodes.map((n) => {
+      const r = Math.sqrt(n.x * n.x + n.y * n.y);
+      const angle = Math.atan2(n.y, n.x) + gmOrbitAngle;
+      return { ...n, x: Math.cos(angle) * r, y: Math.sin(angle) * r, angle };
     });
-  }, [overviewGMs, gmOrbitAngle]);
+  };
+  const rotatedGMs = useMemo(
+    () => (hasExec ? overviewGMs : orbitNodes(overviewGMs)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [overviewGMs, gmOrbitAngle, hasExec],
+  );
+  const rotatedExecs = useMemo(
+    () => (hasExec ? orbitNodes(overviewExecs) : overviewExecs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [overviewExecs, gmOrbitAngle, hasExec],
+  );
 
   // Conexões Diretoria→GM recalculadas a partir da posição orbital atual
   // (a lista `connections` vinda de fora é estática, calculada uma vez a
@@ -412,6 +446,9 @@ export default function OrgChart({
   const rotatedGMConnections = useMemo<Connection[]>(() => {
     const director = overviewDirectors[0];
     if (!director) return [];
+    // Com a Diretoria Executiva, a Diretoria liga a ela (execConnections) e a
+    // Gerência Geral se liga à executiva pelo anel (renderExecSpines).
+    if (hasExec) return [];
     return rotatedGMs.map((gm) => {
       const dist = Math.sqrt(gm.x * gm.x + gm.y * gm.y) || 1;
       const nx = gm.x / dist;
@@ -426,7 +463,28 @@ export default function OrgChart({
         level: gm.level,
       };
     });
-  }, [rotatedGMs, overviewDirectors]);
+  }, [rotatedGMs, overviewDirectors, hasExec]);
+
+  // Diretoria → Diretoria Executiva (o anel executivo é o que gira; a Gerência
+  // Geral fica parada. A linha acompanha a posição atual de cada executivo).
+  const execConnections = useMemo<Connection[]>(() => {
+    const director = overviewDirectors[0];
+    if (!director) return [];
+    return rotatedExecs.map((ex) => {
+      const dist = Math.sqrt(ex.x * ex.x + ex.y * ex.y) || 1;
+      const nx = ex.x / dist;
+      const ny = ex.y / dist;
+      return {
+        fromId: director.id,
+        toId: ex.id,
+        fromX: nx * director.radius,
+        fromY: ny * director.radius,
+        toX: ex.x - nx * ex.radius,
+        toY: ex.y - ny * ex.radius,
+        level: ex.level,
+      };
+    });
+  }, [rotatedExecs, overviewDirectors]);
 
   // ── Sector detail derived data ────────────────────────────────────────
   const detailCenter = useMemo(
@@ -587,8 +645,8 @@ export default function OrgChart({
       setQuery("");
       if (node.isSector) {
         setSectorStack([node.id]); // setor: abre a equipe
-      } else if (node.level <= 2) {
-        setSectorStack([]); // diretoria / gerência: panorama
+      } else if (node.level <= 2 || node.level === NIVEL_DIRETORIA_EXECUTIVA) {
+        setSectorStack([]); // diretoria / executiva / gerência: panorama
       } else {
         const sid = nearestSectorId(node); // pessoa: abre o setor dela
         setSectorStack(sid ? [sid] : []);
@@ -968,8 +1026,8 @@ export default function OrgChart({
       const size = Math.min(Math.max(maxR * 2 + 200, 1200), 4000);
       return { x: -size / 2, y: -size / 2, w: size, h: size };
     }
-    return OVERVIEW_VB;
-  }, [activeSectorId, sectorDetail]);
+    return overviewVb;
+  }, [activeSectorId, sectorDetail, overviewVb]);
   const resetView = () => animateTo(homeVb, 500);
   const zoomPct = Math.round((homeVb.w / vb.w) * 100);
   const isHome =
@@ -1063,8 +1121,17 @@ export default function OrgChart({
     const gmAngle = Math.atan2(firstGM.y, firstGM.x);
 
     const DR = ORB_DIR_R; // orbit radius around director card
-    const GM_R = 190; // GM ring radius
-    const SEC_R = 430; // sector ring radius
+    const EX_R = ovRadii[NIVEL_DIRETORIA_EXECUTIVA] ?? 0; // executive ring radius (0 = sem anel)
+    const GM_R = ovRadii[1]; // GM ring radius
+    const SEC_R = ovRadii[2]; // sector ring radius
+
+    // Com a Diretoria Executiva o traço passa primeiro por ela: a linha sai da
+    // Diretoria até o 1º executivo, dá a volta no anel executivo e desce pra
+    // Gerência Geral na mesma direção. `a0` é o ângulo de saída em cada troca de anel.
+    const firstExec = hasExec
+      ? [...overviewExecs].sort((a, b) => normAngle(a) - normAngle(b))[0]
+      : null;
+    const a0 = firstExec ? Math.atan2(firstExec.y, firstExec.x) : gmAngle;
 
     const parts: string[] = [];
 
@@ -1072,36 +1139,45 @@ export default function OrgChart({
     parts.push(`M 0,${-DR}`);
     parts.push(...ring360(DR, topAngle));
 
-    // ── 2. Arc along director orbit from top to first GM's radial direction ──
-    const dToGM = (((gmAngle - topAngle) % PI2) + PI2) % PI2;
-    if (dToGM > 0.05) parts.push(cwArc(DR, topAngle, gmAngle));
+    // ── 2. Arc along director orbit from top to the first node's radial direction ──
+    const dToA0 = (((a0 - topAngle) % PI2) + PI2) % PI2;
+    if (dToA0 > 0.05) parts.push(cwArc(DR, topAngle, a0));
 
-    // ── 3. Radial line: director orbit → first GM position (connection line) ──
-    parts.push(`L ${f(firstGM.x)},${f(firstGM.y)}`);
+    if (firstExec) {
+      // ── 3a. Radial line: director orbit → first executive, then 360° executive ring ──
+      parts.push(`L ${f(firstExec.x)},${f(firstExec.y)}`);
+      parts.push(...ring360(EX_R, a0));
+      // ── 3b. Stem down to the GM ring, same direction ──
+      parts.push(`L ${f(GM_R * Math.cos(a0))},${f(GM_R * Math.sin(a0))}`);
+    } else {
+      // ── 3. Radial line: director orbit → first GM position (connection line) ──
+      parts.push(`L ${f(firstGM.x)},${f(firstGM.y)}`);
+    }
 
     // ── 4. Full 360° around GM ring — sweeps through ALL GM nodes ──
-    parts.push(...ring360(GM_R, gmAngle));
+    parts.push(...ring360(GM_R, a0));
 
     // ── 5 & 6. Sector ring — only if there are sectors ──
     const hasSectors = overviewSectors.length > 0;
     if (hasSectors) {
       parts.push(
-        `L ${f(SEC_R * Math.cos(gmAngle))},${f(SEC_R * Math.sin(gmAngle))}`,
+        `L ${f(SEC_R * Math.cos(a0))},${f(SEC_R * Math.sin(a0))}`,
       );
-      parts.push(...ring360(SEC_R, gmAngle));
+      parts.push(...ring360(SEC_R, a0));
     }
 
     const dynPath = parts.join(" ");
 
-    // Path length: dir + arc + connector + GM ring + (stem + sec ring if sectors exist)
+    // Path length: dir + arc + connector (+ exec ring + stem) + GM ring + (stem + sec ring if sectors exist)
     const dirLen = PI2 * DR;
-    const arcLen = dToGM * DR;
-    const connLen = GM_R - DR;
+    const arcLen = dToA0 * DR;
+    const connLen = (firstExec ? EX_R : GM_R) - DR;
+    const execLen = firstExec ? PI2 * EX_R + (GM_R - EX_R) : 0;
     const gmLen = PI2 * GM_R;
     const stemLen = hasSectors ? SEC_R - GM_R : 0;
     const secLen = hasSectors ? PI2 * SEC_R : 0;
     const TOTAL = Math.round(
-      dirLen + arcLen + connLen + gmLen + stemLen + secLen,
+      dirLen + arcLen + connLen + execLen + gmLen + stemLen + secLen,
     );
 
     const DRAW = "15s";
@@ -1378,6 +1454,96 @@ export default function OrgChart({
     );
   }
 
+  // ── Spine da Diretoria Executiva (executivos → anel da GG → todas as GGs) ──
+  // Mesmo desenho do GG → setores abaixo, um anel pra dentro: cada executivo
+  // desce uma haste até o anel da Gerência Geral e um arco percorre o anel até
+  // cada GG (que orbita, então os arcos acompanham o ângulo atual de cada uma).
+  function renderExecSpines() {
+    if (!hasExec) return null;
+    const exColor = levelColors[NIVEL_DIRETORIA_EXECUTIVA] ?? "#fff";
+    const GM_R = ovRadii[1];
+
+    const stems = rotatedExecs.map((ex) => {
+      const a = Math.atan2(ex.y, ex.x);
+      const sp = { x: GM_R * Math.cos(a), y: GM_R * Math.sin(a) };
+      const dx = sp.x - ex.x;
+      const dy = sp.y - ex.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      return (
+        <line
+          key={`${ex.id}-stem`}
+          x1={ex.x + (dx / dist) * ex.radius}
+          y1={ex.y + (dy / dist) * ex.radius}
+          x2={sp.x}
+          y2={sp.y}
+          stroke={exColor}
+          strokeWidth={1.5}
+          strokeOpacity={0.55}
+        />
+      );
+    });
+
+    const arcs: React.ReactNode[] = [];
+    rotatedExecs.forEach((ex) => {
+      const a = Math.atan2(ex.y, ex.x);
+      const spX = GM_R * Math.cos(a);
+      const spY = GM_R * Math.sin(a);
+      rotatedGMs.forEach((gg) => {
+        const gAngle = Math.atan2(gg.y, gg.x);
+        let dA = gAngle - a;
+        // Normalise to [-π, π] so we always take the shorter arc
+        while (dA > Math.PI) dA -= 2 * Math.PI;
+        while (dA < -Math.PI) dA += 2 * Math.PI;
+        const largeArc = Math.abs(dA) > Math.PI ? 1 : 0;
+        const sweep = dA > 0 ? 1 : 0;
+        arcs.push(
+          <path
+            key={`${ex.id}-${gg.id}-arc`}
+            d={`M ${spX} ${spY} A ${GM_R} ${GM_R} 0 ${largeArc} ${sweep} ${gg.x} ${gg.y}`}
+            fill="none"
+            stroke={exColor}
+            strokeWidth={1.4}
+            strokeOpacity={0.3}
+          />,
+        );
+      });
+    });
+
+    const dots = [
+      ...rotatedExecs.map((ex) => {
+        const a = Math.atan2(ex.y, ex.x);
+        return (
+          <circle
+            key={`${ex.id}-junc`}
+            cx={GM_R * Math.cos(a)}
+            cy={GM_R * Math.sin(a)}
+            r={3.5}
+            fill={exColor}
+            fillOpacity={0.7}
+          />
+        );
+      }),
+      ...rotatedGMs.map((gg) => (
+        <circle
+          key={`${gg.id}-exjunc`}
+          cx={gg.x}
+          cy={gg.y}
+          r={4}
+          fill={exColor}
+          fillOpacity={0.65}
+        />
+      )),
+    ];
+
+    return (
+      <g pointerEvents="none">
+        {arcs}
+        {stems}
+        {dots}
+      </g>
+    );
+  }
+
   // ── Arc-spine connections (all GGs → sector ring → all sectors) ─────────
   function renderArcSpines() {
     const gmColor = levelColors[1];
@@ -1505,9 +1671,11 @@ export default function OrgChart({
       Object.keys(legendCounts)
         .map(Number)
         .filter((lvl) => (legendCounts[lvl] ?? 0) > 0)
-        .sort((a, b) => a - b)
+        // Ordem hierárquica (coluna `ordem`), não numérica: o nível 13 (Diretoria
+        // Executiva) fica entre a Diretoria (0) e a Gerência Geral (1).
+        .sort((a, b) => ordemDoNivel(a, levelOrder) - ordemDoNivel(b, levelOrder))
         .map((lvl) => [lvl, levelNames[lvl] ?? `Nível ${lvl}`] as [number, string]),
-    [legendCounts, levelNames],
+    [legendCounts, levelNames, levelOrder],
   );
   const [legendOpen, setLegendOpen] = useState(true);
   // No celular a legenda começa recolhida — aberta, cobre metade do mapa.
@@ -1573,6 +1741,10 @@ export default function OrgChart({
   const tourKey = tourSectors.map((p) => p.id).join("|");
   const tourSectorsRef = useRef(tourSectors);
   tourSectorsRef.current = tourSectors;
+  // Ref (e não dependência do efeito do tour): a câmera da visão geral muda de
+  // tamanho quando a Diretoria Executiva aparece, mas isso não deve reiniciar o tour.
+  const overviewVbRef = useRef(overviewVb);
+  overviewVbRef.current = overviewVb;
 
   useEffect(() => {
     if (!isTv || !mounted || !tourKey) return;
@@ -1586,7 +1758,7 @@ export default function OrgChart({
     const later = (fn: () => void, ms: number) => { inner.push(setTimeout(fn, ms)); };
 
     type Step = { ms: number; run: () => void };
-    const steps: Step[] = [{ ms: OVERVIEW_MS, run: () => { setSectorStack([]); animateTo(OVERVIEW_VB, 900); } }];
+    const steps: Step[] = [{ ms: OVERVIEW_MS, run: () => { setSectorStack([]); animateTo(overviewVbRef.current, 900); } }];
     for (const sec of sectors) {
       steps.push({
         ms: FLY_MS,
@@ -2025,9 +2197,10 @@ export default function OrgChart({
                       strokeDasharray="6 5"
                     />
                   ))
-                : Array.from({ length: maxLevel }, (_, i) => i + 1).map(
+                : [NIVEL_DIRETORIA_EXECUTIVA, 1, 2].map(
                     (lv) => {
-                      const r = [190, 430][lv - 1] ?? 0;
+                      // Um guia por nível que tem alguém na visão geral, no raio daquele nível.
+                      const r = positions.some((p) => p.level === lv) ? (ovRadii[lv] ?? 0) : 0;
                       return r > 0 ? (
                         <circle
                           key={lv}
@@ -2054,12 +2227,29 @@ export default function OrgChart({
                       em vez da lista `connections` estática, senão a linha fica presa
                       no ângulo original enquanto o card gira. */}
                   {renderConnections(rotatedGMConnections, overviewPosMap)}
+                  {/* Diretoria → Diretoria Executiva (quando há o anel executivo) */}
+                  {renderConnections(execConnections, overviewPosMap)}
+                  {/* Executivos → anel da GG → GGs */}
+                  {renderExecSpines()}
                   {/* GG→Sector arc-spine connections */}
                   {renderArcSpines()}
 
-                  {/* GMs — orbitam lentamente ao redor da Diretoria (rotatedGMs).
+                  {/* GMs — orbitam lentamente ao redor da Diretoria (rotatedGMs), a menos
+                      que exista a Diretoria Executiva: aí é ela que gira e as GMs ficam paradas.
                       Nome completo: poucos cards, bem espaçados, na visão geral. */}
                   {rotatedGMs.map((node) => (
+                    <NodeCard
+                      key={node.id}
+                      node={node}
+                      color={levelColors[node.level] ?? "#fff"}
+                      vbW={vb.w}
+                      hideText={hideText}
+                      fullName
+                    />
+                  ))}
+
+                  {/* Diretoria Executiva — orbita lentamente no anel entre a Diretoria e a GG */}
+                  {rotatedExecs.map((node) => (
                     <NodeCard
                       key={node.id}
                       node={node}
@@ -2281,6 +2471,7 @@ export default function OrgChart({
             <MiniMap
               visible={zoomPct > 115}
               home={homeVb}
+              ringR={SPINE_R}
               positions={positions}
               vb={vb}
               levelColors={levelColors}
@@ -2339,6 +2530,8 @@ interface MiniMapProps {
   vb: ViewBox;
   /** Visão inicial — define a escala do mini-mapa (o "mundo" inteiro). */
   home: ViewBox;
+  /** Raio do anel de referência (anel dos setores na visão geral). */
+  ringR: number;
   levelColors: Record<number, string>;
   onJump: (worldX: number, worldY: number) => void;
   shifted?: boolean;
@@ -2348,7 +2541,7 @@ interface MiniMapProps {
 
 /** Mini-mapa de orientação: pontos dos nós + retângulo do viewport atual.
  *  Tocar ou arrastar dentro dele move a câmera pra lá. */
-function MiniMap({ positions, vb, home, levelColors, onJump, shifted = false, visible = true }: MiniMapProps) {
+function MiniMap({ positions, vb, home, ringR, levelColors, onJump, shifted = false, visible = true }: MiniMapProps) {
   const S = 140; // tamanho do mini-mapa em px
   const k = S / home.w;
   const mx = (x: number) => (x - home.x) * k;
@@ -2388,7 +2581,7 @@ function MiniMap({ positions, vb, home, levelColors, onJump, shifted = false, vi
         onPointerCancel={() => { dragging.current = false; }}
       >
         {/* anel dos setores, como referência */}
-        <circle cx={mx(0)} cy={my(0)} r={SPINE_R * k} className={styles.minimapRing} />
+        <circle cx={mx(0)} cy={my(0)} r={ringR * k} className={styles.minimapRing} />
         {positions.map((p) => (
           <circle
             key={p.id}

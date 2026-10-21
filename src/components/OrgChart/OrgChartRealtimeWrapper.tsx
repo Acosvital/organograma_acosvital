@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import {
   calculateOverviewLayout, calculateConnections,
-  OVERVIEW_RING_RADII, OVERVIEW_NODE_RADIUS,
+  overviewRingRadii, OVERVIEW_NODE_RADIUS, NIVEL_DIRETORIA_EXECUTIVA, isNivelGlobal,
 } from '@/utils/radialLayout';
 import type { OrgNode } from '@/types/orgChart';
 import { cachedFetch, isCacheHit, orgCacheKey, CACHE_TTL } from '@/lib/dataCache';
@@ -60,6 +60,7 @@ interface Props {
   initialNodes?: OrgNode[];
   levelColors: Record<number, string>;
   levelNames: Record<number, string>;
+  levelOrder: Record<number, number>;
 }
 
 // Posição manual dentro do anel de Gerência Geral (nível 1) — a API não expõe
@@ -77,14 +78,15 @@ const GM_MANUAL_ORDER: Record<string, number> = {
   '1a057366-3183-4772-ae95-4a848710cac4': 1, // João Vitor Martins Venâncio (Aços Vital) — abaixo
 };
 
-export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], levelColors, levelNames }: Props) {
+export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], levelColors, levelNames, levelOrder }: Props) {
   const [nodes, setNodes]         = useState<OrgNode[]>(initialNodes);
   const [isSyncing, setIsSyncing] = useState(false);
   const [triedFetch, setTriedFetch] = useState(initialNodes.length > 0);
 
   const overviewNodes = useMemo(() => {
     const filtered = nodes.filter((n) =>
-      n.level <= 2 && (n.isSector || n.level === 0 || n.unidadeId === unidadeId),
+      (n.level <= 2 || n.level === NIVEL_DIRETORIA_EXECUTIVA) &&
+      (n.isSector || isNivelGlobal(n.level) || n.unidadeId === unidadeId),
     );
     // Sort estável: só reordena o anel de Gerência Geral entre si (via
     // GM_MANUAL_ORDER); todo o resto mantém a posição relativa original.
@@ -98,7 +100,12 @@ export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], 
   const positions = useMemo(
     // Distribute each level evenly across the full 360°, independent of tree structure.
     // Sectors spread around the full sector ring; orphaned nodes land on their correct ring by level.
-    () => calculateOverviewLayout(overviewNodes, OVERVIEW_RING_RADII, OVERVIEW_NODE_RADIUS),
+    // Sem ninguém no nível 13 o anel executivo não existe e os raios são os de sempre.
+    () => calculateOverviewLayout(
+      overviewNodes,
+      overviewRingRadii(overviewNodes.some((n) => n.level === NIVEL_DIRETORIA_EXECUTIVA)),
+      OVERVIEW_NODE_RADIUS,
+    ),
     [overviewNodes],
   );
   const connections = useMemo(() => calculateConnections(positions), [positions]);
@@ -133,6 +140,7 @@ export default function OrgChartRealtimeWrapper({ unidadeId, initialNodes = [], 
         allNodes={nodes}
         levelColors={levelColors}
         levelNames={levelNames}
+        levelOrder={levelOrder}
         unidadeId={unidadeId}
       />
       {!isSyncing && triedFetch && nodes.length === 0 && (

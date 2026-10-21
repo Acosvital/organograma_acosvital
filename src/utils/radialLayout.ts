@@ -22,6 +22,38 @@ export const OVERVIEW_RING_RADII: Record<number, number> = {
   2: 430,  // Setores (18 nodes)
 };
 
+/**
+ * Nível "Diretoria Executiva": pessoas entre a Diretoria (centro) e a Gerência
+ * Geral. Os níveis 0–12 já estão todos ocupados no dicionário compartilhado
+ * com o av-hub (GET /niveis_hierarquicos), então ele entra com o número 13 —
+ * é só um identificador; quem manda na POSIÇÃO é esta lista de raios, e não a
+ * ordem numérica (13 fica no anel de dentro, não depois dos setores).
+ */
+export const NIVEL_DIRETORIA_EXECUTIVA = 13;
+
+/**
+ * Níveis que valem pra empresa inteira, não pra uma unidade: a Diretoria (0) e a
+ * Diretoria Executiva (13) aparecem em TODAS as unidades, independente da
+ * empresa em que estão cadastradas. Os demais (Gerência Geral etc.) são
+ * filtrados pela unidade de cada pessoa.
+ */
+export const isNivelGlobal = (level: number): boolean =>
+  level === 0 || level === NIVEL_DIRETORIA_EXECUTIVA;
+
+// Com o anel executivo, Gerência Geral e Setores descem 130px pra abrir
+// espaço entre a Diretoria (card de raio 78) e a Gerência Geral.
+export const OVERVIEW_RING_RADII_EXEC: Record<number, number> = {
+  0: 0,
+  [NIVEL_DIRETORIA_EXECUTIVA]: 180, // Diretoria Executiva
+  1: 320,  // Gerência Geral
+  2: 560,  // Setores
+};
+
+/** Raios da visão geral. Sem ninguém no nível 13 o anel não existe: a tela fica como sempre foi. */
+export function overviewRingRadii(hasExec: boolean): Record<number, number> {
+  return hasExec ? OVERVIEW_RING_RADII_EXEC : OVERVIEW_RING_RADII;
+}
+
 // ── Sector detail ring radii (BFS depth from sector node) ─────────────
 export const SECTOR_RING_RADII: Record<number, number> = {
   0: 0,     // sector card (center)
@@ -41,6 +73,7 @@ export const OVERVIEW_NODE_RADIUS: Record<number, number> = {
   0: 78,  // directors center card
   1: 28,  // GMs
   2: 36,  // sector cards (bigger — show names)
+  [NIVEL_DIRETORIA_EXECUTIVA]: 32, // Diretoria Executiva (um pouco maior que a GG)
 };
 
 // ── Node visual radii for sector detail (keyed by BFS depth) ──────────
