@@ -21,15 +21,23 @@ export async function proxy(request: NextRequest) {
 
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
 
+  // Só conta como autenticado quem tem `id_usuario` no token — é o mesmo critério
+  // do requireAuth (src/lib/apiAuth.ts). O login pelo Azure busca esse id na API
+  // com a chave; se a API estiver fora do ar ou a chave errada, o NextAuth ainda
+  // emite um token válido, porém "oco" (sem id_usuario). Tratá-lo como logado aqui
+  // fazia um loop infinito: a página rejeita (401) e manda pro /login, e este
+  // proxy devolvia pra "/" por achar que a pessoa já estava autenticada.
+  const authenticated = !!token?.id_usuario;
+
   // Não autenticado fora das rotas públicas → redireciona para /login
-  if (!token && !isPublic) {
+  if (!authenticated && !isPublic) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   // Autenticado tentando acessar /login → redireciona para home
-  if (token && pathname === '/login') {
+  if (authenticated && pathname === '/login') {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
