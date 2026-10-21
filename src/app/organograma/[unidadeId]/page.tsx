@@ -23,7 +23,7 @@ export default async function OrganogramaUnidadePage({
     } catch {}
   }
 
-  const { levelNames, levelColors } = await getNiveisHierarquicos();
+  const { levelNames, levelColors, levelOrder } = await getNiveisHierarquicos();
 
   return (
     <div className={styles.page}>
@@ -33,6 +33,7 @@ export default async function OrganogramaUnidadePage({
         initialNodes={initialNodes}
         levelColors={levelColors}
         levelNames={levelNames}
+        levelOrder={levelOrder}
       />
     </div>
   );

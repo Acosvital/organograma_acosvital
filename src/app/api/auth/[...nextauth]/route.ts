@@ -18,11 +18,17 @@ async function fetchMenu(idUsuario: string): Promise<MenuResponse | null> {
   }
 }
 
-async function findUserByEmail(email: string): Promise<string | null> {
+// A API valida o id_token do Azure (assinatura/kid) em vez de confiar só no
+// e-mail que o cliente manda — sem ele responde 401 ID_TOKEN_INVALIDO. O
+// NextAuth entrega esse token em `account.id_token` no login Microsoft.
+async function findUserByEmail(email: string, idToken: string | undefined): Promise<string | null> {
   try {
-    const data = await apiPost<{ id: string }>('/autenticacao/azure', { email });
+    const data = await apiPost<{ id: string }>('/autenticacao/azure', { email, id_token: idToken });
     return data.id ?? null;
-  } catch {
+  } catch (e) {
+    // Sem isso a falha era silenciosa: o token do NextAuth ficava sem id_usuario e
+    // a pessoa voltava pro /login sem nenhuma pista do motivo.
+    console.error('[auth] /autenticacao/azure falhou:', e instanceof ApiError ? `${e.status} ${e.message}` : e);
     return null;
   }
 }
@@ -74,7 +80,7 @@ export const authOptions: AuthOptions = {
     async jwt({ token, account, user }) {
       if (account?.provider === 'azure-ad') {
         token.authProvider = 'azure';
-        const idUsuario = await findUserByEmail(token.email ?? '');
+        const idUsuario = await findUserByEmail(token.email ?? '', account.id_token);
         if (idUsuario) {
           const userSession = await fetchMenu(idUsuario);
           token.id_usuario = idUsuario;

@@ -1,5 +1,6 @@
 import { fetchAllPages } from '@/lib/apiClient';
 import type { OrgNode } from '@/types/orgChart';
+import { isNivelGlobal } from '@/utils/radialLayout';
 
 // Shape retornado pela view externa /vw_organograma_nodes
 interface VwNode {
@@ -163,15 +164,15 @@ export async function getOrgNodes({ parentId, unidadeId }: GetOrgNodesParams = {
   // aqui — quem decide o que exibir é o client (mergedNodes em OrgChart.tsx),
   // depois que a árvore inteira já chegou. Aqui só ANOTAMOS a unidade de cada
   // pessoa — inclusive Gerência Geral (nível 1): cada Gerente/Coordenador
-  // Geral pertence a uma unidade específica, só a Diretoria (nível 0) é
-  // papel global e aparece em todas.
+  // Geral pertence a uma unidade específica; só a Diretoria (nível 0) e a
+  // Diretoria Executiva (nível 13) são papéis globais e aparecem em todas.
   // Setores são a exceção segura: `visibleSectorIds` vem de /funcionarios +
   // /setores completos (não de BFS parcial), então ocultar um setor vazio
   // nunca corta a descoberta de conteúdo real.
   const finalNodes = !unitScope ? visible : visible
     .filter((n) => !n.isSector || unitScope.visibleSectorIds.has(canonId(n.id)))
     .map((n) => (
-      n.isSector || n.level === 0
+      n.isSector || isNivelGlobal(n.level)
         ? n
         : { ...n, unidadeId: (n.funcionarioId != null ? unitScope.funcUnitMap.get(n.funcionarioId) : undefined) ?? null }
     ));
